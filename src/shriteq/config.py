@@ -36,3 +36,6 @@ class SiteConfig:
     tz: str = "Asia/Kolkata"
     timestep_minutes: int = 15
     episode_days: int = 30
+    unmet_penalty: float = 100.0
+    cycle_penalty: float = 0.1
+    wear_cost: float = 0.05
