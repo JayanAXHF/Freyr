@@ -11,7 +11,7 @@ from shriteq.config import SiteConfig
 def generate_load_series(config: SiteConfig, start, days: int) -> pd.Series:
     """Generate a noisy, synthetic site-load series at the configured timestep."""
     periods = days * (24 * 60 // config.timestep_minutes)
-    index = pd.date_range(start=start, periods=periods, freq=f"{config.timestep_minutes}min")
+    index = pd.date_range(start=start, periods=periods, freq=f"{config.timestep_minutes}min", tz=config.tz)
     hours = index.hour.to_numpy() + index.minute.to_numpy() / 60.0
 
     base = 3.0

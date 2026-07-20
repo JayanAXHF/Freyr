@@ -39,3 +39,4 @@ class SiteConfig:
     unmet_penalty: float = 100.0
     cycle_penalty: float = 0.1
     wear_cost: float = 0.05
+    min_served_load_fraction: float = 0.5

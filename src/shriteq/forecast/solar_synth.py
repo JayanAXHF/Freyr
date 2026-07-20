@@ -38,12 +38,19 @@ def generate(config: SiteConfig, start, days: int) -> pd.Series:
         11: 0.90, 12: 0.95,
     }
     derate = np.array([month_derate[month] for month in times.month])
+    # Cloud variability is a multiplier around clear conditions; the seasonal
+    # derate above carries the persistent haze/monsoon attenuation.
+    target_mean = 1.0
     rng = np.random.default_rng(42)
     cloud = np.empty(periods)
     cloud[0] = 1.0
-    cloud_noise = rng.normal(0.0, 0.06, periods)
+    cloud_noise = rng.normal(0.0, 0.01, periods)
     for index in range(1, periods):
-        cloud[index] = np.clip(0.9 * cloud[index - 1] + cloud_noise[index], 0.3, 1.0)
+        cloud[index] = np.clip(
+            target_mean + 0.9 * (cloud[index - 1] - target_mean) + cloud_noise[index],
+            0.3,
+            1.0,
+        )
 
     solar_kw = np.maximum(0.0, irradiance["poa_global"].to_numpy() / 1000.0 * derate * cloud * 10.0)
     return pd.Series(solar_kw, index=times, name="solar_kw")

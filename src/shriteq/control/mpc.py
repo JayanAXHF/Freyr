@@ -57,6 +57,8 @@ class MPCController:
             + config.ev_flex_max_kw * ev
             + config.pump_flex_max_kw * pump
         )
+        flex_reduction = load - effective_load
+        constraints.append(flex_reduction <= load * (1.0 - config.min_served_load_fraction))
         constraints.append(
             grid_import + battery_discharge + unmet
             == effective_load - solar + curtailment + battery_charge
@@ -79,7 +81,7 @@ class MPCController:
             cp.sum(cp.multiply(prices, grid_import)) * dt_hours
             + demand_rates[-1] * peak_kva[-1]
             + config.wear_cost * cp.sum(battery_charge + battery_discharge) * dt_hours
-            + config.unmet_penalty * cp.sum(unmet) * dt_hours
+            + config.unmet_penalty * (cp.sum(unmet) + cp.sum(flex_reduction)) * dt_hours
         )
         self.problem = cp.Problem(objective, constraints)
         try:
@@ -87,14 +89,18 @@ class MPCController:
         except Exception:
             self.problem.solve(solver=cp.ECOS)
         if self.problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
-            raise RuntimeError(f"MPC solve failed with status {self.problem.status}")
+            self.problem.solve(solver=cp.ECOS)
+        if self.problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
+            raise RuntimeError(
+                f"MPC solve failed after OSQP/ECOS with status {self.problem.status}"
+            )
 
         return DispatchPlan(
             step=0,
             battery_kw=float(battery_discharge.value[0] - battery_charge.value[0]),
-            hvac_fraction=float(hvac.value[0]),
-            ev_fraction=float(ev.value[0]),
-            pump_fraction=float(pump.value[0]),
-            grid_import_kw=float(grid_import.value[0]),
-            predicted_peak_kva=float(peak_kva.value[0]),
+            hvac_fraction=float(np.clip(hvac.value[0], 0.0, 1.0)),
+            ev_fraction=float(np.clip(ev.value[0], 0.0, 1.0)),
+            pump_fraction=float(np.clip(pump.value[0], 0.0, 1.0)),
+            grid_import_kw=float(max(0.0, grid_import.value[0])),
+            predicted_peak_kva=float(max(0.0, peak_kva.value[0])),
         )
