@@ -52,6 +52,11 @@ class MPCController:
             curtailment <= solar,
             peak_kva >= grid_import,
         ]
+        # The billed peak is the maximum import over the horizon.  Because
+        # the objective uses peak_kva[-1], make peak_kva a running maximum so
+        # earlier spikes cannot escape the demand-charge term.
+        for index in range(1, self.horizon):
+            constraints.append(peak_kva[index] >= peak_kva[index - 1])
         effective_load = load - (
             config.hvac_flex_max_kw * hvac
             + config.ev_flex_max_kw * ev
@@ -88,7 +93,12 @@ class MPCController:
             self.problem.solve(solver=cp.OSQP)
         except Exception:
             self.problem.solve(solver=cp.ECOS)
-        if self.problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
+        # Do not accept OSQP's ``optimal_inaccurate`` result as final.  In
+        # this model it can contain a materially infeasible dispatch even
+        # though CVXPY exposes variable values.  Re-solve with the more
+        # conservative fallback solver and only then accept an inaccurate
+        # status if that is the best available result.
+        if self.problem.status != cp.OPTIMAL:
             self.problem.solve(solver=cp.ECOS)
         if self.problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
             raise RuntimeError(

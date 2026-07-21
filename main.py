@@ -1,6 +1,6 @@
-def main():
-    print("Hello from shriteq!")
+from pprint import pprint
+from shriteq.config import SiteConfig
+from shriteq.eval.benchmark import run_benchmark
 
-
-if __name__ == "__main__":
-    main()
+results = run_benchmark(SiteConfig(), seed=42)
+pprint(results)

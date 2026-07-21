@@ -26,11 +26,27 @@ def test_named_scenario_mpc_and_ppo_bounds(scenario):
         load.iloc[64:80] += 10
 
     frames = [
-        ForecastFrame(load.index[i], float(load.iloc[i]), float(load.iloc[i] * .9), float(load.iloc[i] * 1.1), float(solar.iloc[i]), float(solar.iloc[i] * .9), float(solar.iloc[i] * 1.1), 8.0, 250.0, 0)
+        ForecastFrame(
+            load.index[i],
+            float(load.iloc[i]),
+            float(load.iloc[i] * 0.9),
+            float(load.iloc[i] * 1.1),
+            float(solar.iloc[i]),
+            float(solar.iloc[i] * 0.9),
+            float(solar.iloc[i] * 1.1),
+            8.0,
+            250.0,
+            0,
+        )
         for i in range(96)
     ]
     controller = MPCController(config)
-    controller.solve(SiteState(load.index[0], .5, float(load.iloc[0]), float(solar.iloc[0]), 0, 0, 60), frames)
+    controller.solve(
+        SiteState(
+            load.index[0], 0.5, float(load.iloc[0]), float(solar.iloc[0]), 0, 0, 60
+        ),
+        frames,
+    )
     assert controller.problem.status == "optimal"
 
     env = GridEdgeEnv(config, load_series=load, solar_series=solar)
@@ -41,8 +57,12 @@ def test_named_scenario_mpc_and_ppo_bounds(scenario):
         action = np.clip(action, -1, 1)
         battery = float(action[0])
         assert 0 <= max(0.0, battery) * config.max_charge_kw <= config.max_charge_kw
-        assert 0 <= max(0.0, -battery) * config.max_discharge_kw <= config.max_discharge_kw
-        assert np.all(np.clip(action[1:], 0, 1) >= 0) and np.all(np.clip(action[1:], 0, 1) <= 1)
+        assert (
+            0 <= max(0.0, -battery) * config.max_discharge_kw <= config.max_discharge_kw
+        )
+        assert np.all(np.clip(action[1:], 0, 1) >= 0) and np.all(
+            np.clip(action[1:], 0, 1) <= 1
+        )
         observation, _, terminated, _, _ = env.step(action)
         if terminated:
             break
