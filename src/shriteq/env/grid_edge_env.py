@@ -1,4 +1,4 @@
-"""Gymnasium wrapper for the site simulator."""
+"""Gymnasium wrapper for the si pte simulator."""
 
 import gymnasium as gym
 import numpy as np
@@ -8,27 +8,49 @@ from shriteq.forecast.solar_synth import generate as generate_solar
 from shriteq.forecast.tariff import TariffModel
 from shriteq.sim.load_profiles import generate_load_series
 from shriteq.sim.site_model import SiteModel
-from shriteq.env.reward import compute_reward
+from shriteq.env.reward import compute_reward, deferred_penalty
 
 
 class GridEdgeEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, config: SiteConfig | None = None, load_series=None, solar_series=None, horizon: int = 16):
+    def __init__(
+        self,
+        config: SiteConfig | None = None,
+        load_series=None,
+        solar_series=None,
+        horizon: int = 96,
+    ):
         super().__init__()
         self.config = config or SiteConfig()
         self.horizon = horizon
-        self.load_series = load_series if load_series is not None else generate_load_series(self.config, "2026-01-01", 90)
-        self.solar_series = solar_series if solar_series is not None else generate_solar(self.config, "2026-01-01", 90)
+        self.load_series = (
+            load_series
+            if load_series is not None
+            else generate_load_series(self.config, "2026-01-01", 90)
+        )
+        self.solar_series = (
+            solar_series
+            if solar_series is not None
+            else generate_solar(self.config, "2026-01-01", 90)
+        )
         if self.load_series.index.tz != self.solar_series.index.tz:
-            raise ValueError("load and solar series must use the same timezone-aware index")
+            raise ValueError(
+                "load and solar series must use the same timezone-aware index"
+            )
         self.site = SiteModel(self.config)
         self.tariff = TariffModel(self.config)
         self.action_space = gym.spaces.Box(-1.0, 1.0, shape=(4,), dtype=np.float32)
-        self.observation_space = gym.spaces.Dict({
-            "site_state": gym.spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-            "forecast": gym.spaces.Box(-np.inf, np.inf, shape=(horizon, 3), dtype=np.float32),
-        })
+        self.observation_space = gym.spaces.Dict(
+            {
+                "site_state": gym.spaces.Box(
+                    -np.inf, np.inf, shape=(7,), dtype=np.float32
+                ),
+                "forecast": gym.spaces.Box(
+                    -np.inf, np.inf, shape=(horizon, 3), dtype=np.float32
+                ),
+            }
+        )
         self._position = 0
         self._episode_end = 0
 
@@ -42,18 +64,26 @@ class GridEdgeEnv(gym.Env):
             solar = np.pad(solar, (0, self.horizon - len(solar)))
         prices = []
         for offset in range(self.horizon):
-            timestamp = self.load_series.index[min(observation_position + offset, len(self.load_series) - 1)]
-            hour = timestamp.hour + timestamp.minute / 60
-            price = next(
-                block["price_inr_per_kwh"]
-                for block in self.config.tariff_blocks
-                if block["start_hour"] <= hour < block["end_hour"]
-            )
+            timestamp = self.load_series.index[
+                min(observation_position + offset, len(self.load_series) - 1)
+            ]
+            _, price, _ = self.tariff.peek(timestamp)
             prices.append(price)
         forecast = np.column_stack((load, solar, prices)).astype(np.float32)
         timestamp = self.load_series.index[observation_position]
-        tariff = self.tariff.step(timestamp, 0.0)
-        state = np.array([timestamp.hour, self.site.battery.soc, load[0], solar[0], self.tariff.current_billing_peak_kva, tariff["tariff_block_id"], tariff["minutes_to_tariff_change"]], dtype=np.float32)
+        tariff_block_id, price, minutes = self.tariff.peek(timestamp)
+        state = np.array(
+            [
+                timestamp.hour,
+                self.site.battery.soc,
+                load[0],
+                solar[0],
+                self.tariff.current_billing_peak_kva,
+                tariff_block_id,
+                minutes,
+            ],
+            dtype=np.float32,
+        )
         return {"site_state": state, "forecast": forecast}
 
     def reset(self, *, seed=None, options=None):
@@ -70,14 +100,37 @@ class GridEdgeEnv(gym.Env):
         battery = float(action[0])
         charge = max(0.0, battery) * self.config.max_charge_kw
         discharge = max(0.0, -battery) * self.config.max_discharge_kw
-        # Negative actions request no shedding; positive actions request
-        # progressively more flexible-load reduction.
-        flex = np.clip(action[1:], 0.0, 1.0)
+        # Use the complete policy output range for flexible-load fractions.
+        flex = (np.clip(action[1:], -1.0, 1.0) + 1.0) / 2.0
         timestamp = self.load_series.index[self._position]
-        result = self.site.step(self.load_series.iloc[self._position], self.solar_series.iloc[self._position], charge, discharge, *flex)
+        result = self.site.step(
+            self.load_series.iloc[self._position],
+            self.solar_series.iloc[self._position],
+            charge,
+            discharge,
+            *flex,
+        )
         tariff = self.tariff.step(timestamp, result["grid_import_kw"])
-        reward = compute_reward(result["grid_import_kwh"], tariff["tod_price_inr_per_kwh"], tariff["peak_bump_kva"], self.config.demand_charge_inr_per_kva_month, result["unmet_load_kwh"], result["battery_throughput_kwh"])
+        reward = compute_reward(
+            self.config,
+            result["grid_import_kwh"],
+            tariff["tod_price_inr_per_kwh"],
+            tariff["peak_bump_kva"],
+            self.config.demand_charge_inr_per_kva_month,
+            result["shed_load_kwh"],
+            result["battery_throughput_kwh"],
+            result["rolling_deferred_energy_kwh"],
+            result["shed_load_kwh"],
+        )
         self._position += 1
         terminated = self._position >= self._episode_end
-        info = {**result, **tariff, "bill_delta_inr": tariff["tod_price_inr_per_kwh"] * result["grid_import_kwh"]}
+        info = {
+            **result,
+            **tariff,
+            "bill_delta_inr": tariff["tod_price_inr_per_kwh"]
+            * result["grid_import_kwh"],
+            "deferred_penalty": deferred_penalty(
+                self.config, result["rolling_deferred_energy_kwh"]
+            ),
+        }
         return self._observation(), float(reward), terminated, False, info

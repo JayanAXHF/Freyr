@@ -6,11 +6,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from stable_baselines3 import PPO
 
 from shriteq.config import SiteConfig
 from shriteq.contracts import ForecastFrame, SiteState
 from shriteq.control.mpc import MPCController
+from shriteq.control.rl_policy import RLPolicy
 from shriteq.env.grid_edge_env import GridEdgeEnv
 from shriteq.forecast.tariff import TariffModel
 from shriteq.forecast.load_forecaster import LoadForecaster
@@ -25,6 +25,8 @@ METRICS = (
     "peak_kva",
     "unmet_load_kwh",
     "unmet_events",
+    "shed_load_kwh",
+    "shed_events",
     "solar_self_consumption",
 )
 
@@ -74,6 +76,8 @@ def _metrics(config: SiteConfig, rows: list[dict], solar: pd.Series) -> dict:
         "peak_kva": peak,
         "unmet_load_kwh": sum(row["unmet_load_kwh"] for row in rows),
         "unmet_events": sum(row["unmet_load_kwh"] > 0 for row in rows),
+        "shed_load_kwh": sum(row["shed_load_kwh"] for row in rows),
+        "shed_events": sum(row["shed_load_kwh"] > 0 for row in rows),
         "solar_self_consumption": solar_used / solar_total if solar_total else 0.0,
     }
 
@@ -84,10 +88,11 @@ def _run_mpc(config: SiteConfig, load: pd.Series, solar: pd.Series, forecast_loa
     controller = MPCController(config)
     rows = []
     dt_hours = config.timestep_minutes / 60
+    RESOLVE_EVERY_N_STEPS = 8  # 2-hour re-solve cadence; see PLAN.md notes on solver cost (~0.38s/solve, 2880 steps/episode)
     plan = None
     for position, timestamp in enumerate(load.index):
         tariff_info = tariff.step(timestamp, 0.0)
-        if position % 96 == 0:
+        if plan is None or position % RESOLVE_EVERY_N_STEPS == 0:
             state = SiteState(timestamp, site.battery.soc, float(load.iloc[position]), float(solar.iloc[position]), tariff.current_billing_peak_kva, tariff_info["tariff_block_id"], tariff_info["minutes_to_tariff_change"])
             plan = controller.solve(state, _frames(config, forecast_load if forecast_load is not None else load, solar, position))
         assert plan is not None
@@ -100,14 +105,21 @@ def _run_mpc(config: SiteConfig, load: pd.Series, solar: pd.Series, forecast_loa
     return (metrics, rows) if return_trace else metrics
 
 
-def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, return_trace: bool = False):
+def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, model_path: str | Path = "models/ppo_gridedge.zip", return_trace: bool = False):
     env = GridEdgeEnv(config, load_series=load, solar_series=solar)
     observation, _ = env.reset(seed=0)
-    model_path = Path("models/ppo_gridedge.zip")
-    model = PPO.load(str(model_path), env=env)
+    policy = RLPolicy(config, model_path)
     rows = []
     for _ in range(len(load)):
-        action, _ = model.predict(observation, deterministic=True)
+        frames = _frames(config, load, solar, env._position)
+        state = SiteState(timestamp=load.index[len(rows)], soc=env.site.battery.soc, current_load_kw=float(load.iloc[len(rows)]), current_solar_kw=float(solar.iloc[len(rows)]), current_billing_peak_kva=env.tariff.current_billing_peak_kva, current_tariff_block=env.tariff.peek(load.index[len(rows)])[0], minutes_to_tariff_change=env.tariff.peek(load.index[len(rows)])[2])
+        plan = policy.solve(state, frames)
+        action = np.array([
+            -plan.battery_kw / config.max_discharge_kw if plan.battery_kw >= 0 else -plan.battery_kw / config.max_charge_kw,
+            plan.hvac_fraction * 2 - 1,
+            plan.ev_fraction * 2 - 1,
+            plan.pump_fraction * 2 - 1,
+        ], dtype=np.float32)
         observation, _, terminated, _, info = env.step(action)
         rows.append({**info, "timestamp": load.index[len(rows)], "energy_cost": info["grid_import_kwh"] * info["tod_price_inr_per_kwh"], "solar_used_kwh": info["solar_used_kwh"]})
         if terminated:
@@ -116,7 +128,7 @@ def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, return_trace
     return (metrics, rows) if return_trace else metrics
 
 
-def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = False) -> dict:
+def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = False, model_path: str | Path = "models/ppo_gridedge.zip") -> dict:
     """Run MPC and PPO on the same seeded 30-day scenario.
 
     With ``forecast_driven=True``, the MPC forecast is produced from the
@@ -128,7 +140,7 @@ def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = False) 
         history = generate_load_series(config, load.index[0] - pd.Timedelta(days=21), 21)
         forecast = LoadForecaster(config).fit(history).predict(len(load))
         forecast_load = pd.Series([frame.load_mean_kw for frame in forecast], index=load.index, name="forecast_load_kw")
-    return {"mpc": _run_mpc(config, load, solar, forecast_load), "ppo": _run_ppo(config, load, solar)}
+    return {"mpc": _run_mpc(config, load, solar, forecast_load), "ppo": _run_ppo(config, load, solar, model_path)}
 
 
 def run_benchmark_with_traces(config: SiteConfig, seed: int) -> dict:

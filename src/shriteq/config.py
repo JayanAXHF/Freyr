@@ -36,7 +36,10 @@ class SiteConfig:
     tz: str = "Asia/Kolkata"
     timestep_minutes: int = 15
     episode_days: int = 30
-    unmet_penalty: float = 100.0
+    unmet_penalty: float = 25.0
     cycle_penalty: float = 0.1
     wear_cost: float = 0.05
     min_served_load_fraction: float = 0.5
+    deferred_energy_budget_kwh_per_day: float = 24.0
+    deferred_cumulative_penalty: float = 0.25
+    low_price_shed_penalty: float = 25.0
