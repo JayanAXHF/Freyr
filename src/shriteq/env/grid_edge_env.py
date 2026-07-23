@@ -117,7 +117,7 @@ class GridEdgeEnv(gym.Env):
             tariff["tod_price_inr_per_kwh"],
             tariff["peak_bump_kva"],
             self.config.demand_charge_inr_per_kva_month,
-            result["shed_load_kwh"],
+            result["unmet_load_kwh"],
             result["battery_throughput_kwh"],
             result["rolling_deferred_energy_kwh"],
             result["shed_load_kwh"],
