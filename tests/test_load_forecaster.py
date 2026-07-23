@@ -1,6 +1,7 @@
 from shriteq.config import SiteConfig
 from shriteq.forecast.load_forecaster import LoadForecaster
 from shriteq.sim.load_profiles import generate_load_series
+from shriteq.forecast.tariff import TariffModel
 
 
 def test_load_forecaster_predicts_96_frames_without_nans():
@@ -19,3 +20,12 @@ def test_load_forecaster_predicts_96_frames_without_nans():
         frame.solar_p10_kw < frame.solar_mean_kw < frame.solar_p90_kw
         for frame in solar_frames
     )
+
+
+def test_forecast_tariff_blocks_match_direct_lookup():
+    config = SiteConfig()
+    series = generate_load_series(config, "2026-01-05", days=28)
+    frames = LoadForecaster(config).fit(series).predict(96)
+    tariff = TariffModel(config)
+    expected = [tariff.peek(frame.timestamp)[0] for frame in frames]
+    assert [frame.tariff_block_id for frame in frames] == expected

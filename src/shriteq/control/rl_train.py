@@ -1,8 +1,6 @@
 """PPO smoke-training entry point for the GridEdge environment."""
 
 from __future__ import annotations
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-
 import csv
 from pathlib import Path
 
@@ -10,6 +8,7 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from shriteq.config import SiteConfig
 from shriteq.env.grid_edge_env import GridEdgeEnv
@@ -48,9 +47,8 @@ def train(
     reward_log = Path("outputs/ppo_training_rewards.csv")
     if reward_log.exists():
         reward_log.unlink()
-    # env = DummyVecEnv([lambda: GridEdgeEnv(SiteConfig())])
-    # env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
-    env = Monitor(GridEdgeEnv(SiteConfig()))
+    env = DummyVecEnv([lambda: Monitor(GridEdgeEnv(SiteConfig()))])
+    env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
     model = PPO(
         "MultiInputPolicy",
@@ -64,6 +62,8 @@ def train(
     model.learn(total_timesteps=total_timesteps, callback=callback)
     Path(model_path).parent.mkdir(parents=True, exist_ok=True)
     model.save(str(model_path))
+    env.save(str(model_path) + "_vecnormalize.pkl")
+    env.close()
     return model
 
 

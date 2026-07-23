@@ -26,7 +26,12 @@ def _calendar_features(index: pd.DatetimeIndex) -> pd.DataFrame:
 
 
 class LoadForecaster:
-    """Fit a seasonal SARIMAX model and produce complete forecast contracts."""
+    """Fit SARIMAX and produce forecast contracts.
+
+    The tariff model used by :meth:`predict` is only a time-of-use
+    price/block lookup. It deliberately does not represent the site's live
+    billing peak or mutate an external billing cycle.
+    """
 
     def __init__(self, config: SiteConfig | None = None):
         self.config = config or SiteConfig()
@@ -76,10 +81,10 @@ class LoadForecaster:
         p90 = np.maximum(p10, interval[:, 1])
 
         solar = generate_solar(self.config, timestamps[0], (n_steps + 95) // 96)
-        tariff = TariffModel(self.config)
+        tariff_lookup = TariffModel(self.config)
         frames = []
         for index, timestamp in enumerate(timestamps):
-            tariff_info = tariff.step(timestamp, 0.0)
+            tariff_block_id, price, _ = tariff_lookup.peek(timestamp)
             frames.append(
                 ForecastFrame(
                     timestamp=timestamp,
@@ -89,11 +94,11 @@ class LoadForecaster:
                     solar_mean_kw=float(solar.iloc[index]),
                     solar_p10_kw=float(solar.iloc[index] * 0.9),
                     solar_p90_kw=float(solar.iloc[index] * 1.1),
-                    price_inr_per_kwh=float(tariff_info["tod_price_inr_per_kwh"]),
+                    price_inr_per_kwh=float(price),
                     demand_rate_inr_per_kva=float(
                         self.config.demand_charge_inr_per_kva_month
                     ),
-                    tariff_block_id=int(tariff_info["tariff_block_id"]),
+                    tariff_block_id=int(tariff_block_id),
                 )
             )
         return frames

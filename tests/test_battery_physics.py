@@ -24,3 +24,14 @@ def test_flexible_load_is_accounted_as_deferred_or_unmet_energy():
     assert result["deferred_load_kwh"] == 1.25
     assert result["unmet_load_kwh"] == result["deferred_load_kwh"]
     assert result["served_load_kwh"] + result["unmet_load_kwh"] == 2.5
+
+
+def test_deferral_penalty_uses_rolling_24_hour_window():
+    config = SiteConfig(timestep_minutes=15)
+    site = SiteModel(config)
+    first = site.step(10, 0, 0, 0, 1, 0, 0)
+    for _ in range(95):
+        site.step(10, 0, 0, 0, 0, 0, 0)
+    after_window = site.step(10, 0, 0, 0, 0, 0, 0)
+    assert first["rolling_deferred_energy_kwh"] > 0
+    assert after_window["rolling_deferred_energy_kwh"] == 0

@@ -8,7 +8,7 @@ from shriteq.forecast.solar_synth import generate as generate_solar
 from shriteq.forecast.tariff import TariffModel
 from shriteq.sim.load_profiles import generate_load_series
 from shriteq.sim.site_model import SiteModel
-from shriteq.env.reward import compute_reward
+from shriteq.env.reward import compute_reward, deferred_penalty
 
 
 class GridEdgeEnv(gym.Env):
@@ -19,7 +19,7 @@ class GridEdgeEnv(gym.Env):
         config: SiteConfig | None = None,
         load_series=None,
         solar_series=None,
-        horizon: int = 16,
+        horizon: int = 96,
     ):
         super().__init__()
         self.config = config or SiteConfig()
@@ -67,16 +67,11 @@ class GridEdgeEnv(gym.Env):
             timestamp = self.load_series.index[
                 min(observation_position + offset, len(self.load_series) - 1)
             ]
-            hour = timestamp.hour + timestamp.minute / 60
-            price = next(
-                block["price_inr_per_kwh"]
-                for block in self.config.tariff_blocks
-                if block["start_hour"] <= hour < block["end_hour"]
-            )
+            _, price, _ = self.tariff.peek(timestamp)
             prices.append(price)
         forecast = np.column_stack((load, solar, prices)).astype(np.float32)
         timestamp = self.load_series.index[observation_position]
-        tariff = self.tariff.step(timestamp, 0.0)
+        tariff_block_id, price, minutes = self.tariff.peek(timestamp)
         state = np.array(
             [
                 timestamp.hour,
@@ -84,8 +79,8 @@ class GridEdgeEnv(gym.Env):
                 load[0],
                 solar[0],
                 self.tariff.current_billing_peak_kva,
-                tariff["tariff_block_id"],
-                tariff["minutes_to_tariff_change"],
+                tariff_block_id,
+                minutes,
             ],
             dtype=np.float32,
         )
@@ -105,9 +100,8 @@ class GridEdgeEnv(gym.Env):
         battery = float(action[0])
         charge = max(0.0, battery) * self.config.max_charge_kw
         discharge = max(0.0, -battery) * self.config.max_discharge_kw
-        # Negative actions request no shedding; positive actions request
-        # progressively more flexible-load reduction.
-        flex = np.clip(action[1:], 0.0, 1.0)
+        # Use the complete policy output range for flexible-load fractions.
+        flex = (np.clip(action[1:], -1.0, 1.0) + 1.0) / 2.0
         timestamp = self.load_series.index[self._position]
         result = self.site.step(
             self.load_series.iloc[self._position],
@@ -125,6 +119,7 @@ class GridEdgeEnv(gym.Env):
             self.config.demand_charge_inr_per_kva_month,
             result["unmet_load_kwh"],
             result["battery_throughput_kwh"],
+            result["rolling_deferred_energy_kwh"],
         )
         self._position += 1
         terminated = self._position >= self._episode_end
@@ -133,5 +128,8 @@ class GridEdgeEnv(gym.Env):
             **tariff,
             "bill_delta_inr": tariff["tod_price_inr_per_kwh"]
             * result["grid_import_kwh"],
+            "deferred_penalty": deferred_penalty(
+                self.config, result["rolling_deferred_energy_kwh"]
+            ),
         }
         return self._observation(), float(reward), terminated, False, info

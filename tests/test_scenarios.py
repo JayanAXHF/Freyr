@@ -15,6 +15,20 @@ from shriteq.forecast.solar_synth import generate as generate_solar
 SCENARIOS = ("clear hot weekday", "monsoon week", "EV-spike day")
 
 
+def test_flexible_action_mapping_uses_full_range():
+    config = SiteConfig()
+    load = generate_load_series(config, "2026-01-05", 2)
+    solar = generate_solar(config, "2026-01-05", 2)
+    low = GridEdgeEnv(config, load_series=load, solar_series=solar)
+    high = GridEdgeEnv(config, load_series=load, solar_series=solar)
+    low.reset(seed=0)
+    high.reset(seed=0)
+    _, _, _, _, low_info = low.step(np.array([0, -1, -1, -1], dtype=np.float32))
+    _, _, _, _, high_info = high.step(np.array([0, 1, 1, 1], dtype=np.float32))
+    assert sum(low_info["deferred_energy_kwh"].values()) == 0.0
+    assert sum(high_info["deferred_energy_kwh"].values()) > 0.0
+
+
 @pytest.mark.parametrize("scenario", SCENARIOS)
 def test_named_scenario_mpc_and_ppo_bounds(scenario):
     config = SiteConfig()
