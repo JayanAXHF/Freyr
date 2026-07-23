@@ -40,6 +40,6 @@ class SiteConfig:
     cycle_penalty: float = 0.1
     wear_cost: float = 0.05
     min_served_load_fraction: float = 0.5
-    deferred_energy_budget_kwh_per_day: float = 24.0
+    deferred_energy_budget_kwh_per_day: float = 12.0
     deferred_cumulative_penalty: float = 0.25
     low_price_shed_penalty: float = 25.0
