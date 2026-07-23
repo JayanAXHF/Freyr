@@ -9,6 +9,7 @@ from shriteq.forecast.tariff import TariffModel
 from shriteq.sim.load_profiles import generate_load_series
 from shriteq.sim.site_model import SiteModel
 from shriteq.env.reward import compute_reward, deferred_penalty
+from shriteq.env.forecast_provider import LoadForecasterProvider
 
 
 class GridEdgeEnv(gym.Env):
@@ -19,7 +20,8 @@ class GridEdgeEnv(gym.Env):
         config: SiteConfig | None = None,
         load_series=None,
         solar_series=None,
-        horizon: int = 96,
+        horizon: int = 16,
+        forecast_provider=None,
     ):
         super().__init__()
         self.config = config or SiteConfig()
@@ -38,6 +40,9 @@ class GridEdgeEnv(gym.Env):
             raise ValueError(
                 "load and solar series must use the same timezone-aware index"
             )
+        self.forecast_provider = forecast_provider or LoadForecasterProvider(
+            self.config, self.load_series, self.solar_series
+        )
         self.site = SiteModel(self.config)
         self.tariff = TariffModel(self.config)
         self.action_space = gym.spaces.Box(-1.0, 1.0, shape=(4,), dtype=np.float32)
@@ -56,19 +61,9 @@ class GridEdgeEnv(gym.Env):
 
     def _observation(self):
         observation_position = min(self._position, len(self.load_series) - 1)
-        end = observation_position + self.horizon
-        load = self.load_series.iloc[observation_position:end].to_numpy()
-        solar = self.solar_series.iloc[observation_position:end].to_numpy()
-        if len(load) < self.horizon:
-            load = np.pad(load, (0, self.horizon - len(load)))
-            solar = np.pad(solar, (0, self.horizon - len(solar)))
-        prices = []
-        for offset in range(self.horizon):
-            timestamp = self.load_series.index[
-                min(observation_position + offset, len(self.load_series) - 1)
-            ]
-            _, price, _ = self.tariff.peek(timestamp)
-            prices.append(price)
+        load, solar, prices = self.forecast_provider.forecast(
+            observation_position, self.horizon
+        )
         forecast = np.column_stack((load, solar, prices)).astype(np.float32)
         timestamp = self.load_series.index[observation_position]
         tariff_block_id, price, minutes = self.tariff.peek(timestamp)

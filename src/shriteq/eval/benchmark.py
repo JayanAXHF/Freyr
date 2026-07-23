@@ -12,6 +12,7 @@ from shriteq.contracts import ForecastFrame, SiteState
 from shriteq.control.mpc import MPCController
 from shriteq.control.rl_policy import RLPolicy
 from shriteq.env.grid_edge_env import GridEdgeEnv
+from shriteq.env.forecast_provider import SeriesForecastProvider
 from shriteq.forecast.tariff import TariffModel
 from shriteq.forecast.load_forecaster import LoadForecaster
 from shriteq.sim.site_model import SiteModel
@@ -105,14 +106,16 @@ def _run_mpc(config: SiteConfig, load: pd.Series, solar: pd.Series, forecast_loa
     return (metrics, rows) if return_trace else metrics
 
 
-def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, model_path: str | Path = "models/ppo_gridedge.zip", return_trace: bool = False):
-    env = GridEdgeEnv(config, load_series=load, solar_series=solar)
+def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, model_path: str | Path = "models/ppo_gridedge.zip", return_trace: bool = False, forecast_load: pd.Series | None = None):
+    provider = SeriesForecastProvider(config, forecast_load if forecast_load is not None else load, solar)
+    env = GridEdgeEnv(config, load_series=load, solar_series=solar, forecast_provider=provider)
     observation, _ = env.reset(seed=0)
     policy = RLPolicy(config, model_path)
     rows = []
     for _ in range(len(load)):
-        frames = _frames(config, load, solar, env._position)
-        state = SiteState(timestamp=load.index[len(rows)], soc=env.site.battery.soc, current_load_kw=float(load.iloc[len(rows)]), current_solar_kw=float(solar.iloc[len(rows)]), current_billing_peak_kva=env.tariff.current_billing_peak_kva, current_tariff_block=env.tariff.peek(load.index[len(rows)])[0], minutes_to_tariff_change=env.tariff.peek(load.index[len(rows)])[2])
+        control_load = forecast_load if forecast_load is not None else load
+        frames = _frames(config, control_load, solar, env._position)
+        state = SiteState(timestamp=load.index[len(rows)], soc=env.site.battery.soc, current_load_kw=float(control_load.iloc[len(rows)]), current_solar_kw=float(solar.iloc[len(rows)]), current_billing_peak_kva=env.tariff.current_billing_peak_kva, current_tariff_block=env.tariff.peek(load.index[len(rows)])[0], minutes_to_tariff_change=env.tariff.peek(load.index[len(rows)])[2])
         plan = policy.solve(state, frames)
         action = np.array([
             -plan.battery_kw / config.max_discharge_kw if plan.battery_kw >= 0 else -plan.battery_kw / config.max_charge_kw,
@@ -128,7 +131,7 @@ def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, model_path: 
     return (metrics, rows) if return_trace else metrics
 
 
-def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = False, model_path: str | Path = "models/ppo_gridedge.zip") -> dict:
+def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = True, model_path: str | Path = "models/ppo_gridedge.zip") -> dict:
     """Run MPC and PPO on the same seeded 30-day scenario.
 
     With ``forecast_driven=True``, the MPC forecast is produced from the
@@ -140,14 +143,21 @@ def run_benchmark(config: SiteConfig, seed: int, forecast_driven: bool = False, 
         history = generate_load_series(config, load.index[0] - pd.Timedelta(days=21), 21)
         forecast = LoadForecaster(config).fit(history).predict(len(load))
         forecast_load = pd.Series([frame.load_mean_kw for frame in forecast], index=load.index, name="forecast_load_kw")
-    return {"mpc": _run_mpc(config, load, solar, forecast_load), "ppo": _run_ppo(config, load, solar, model_path)}
+    ppo_forecast_load = forecast_load if forecast_driven else load
+    return {
+        "mpc": _run_mpc(config, load, solar, forecast_load),
+        "ppo": _run_ppo(config, load, solar, model_path, forecast_load=ppo_forecast_load),
+    }
 
 
 def run_benchmark_with_traces(config: SiteConfig, seed: int) -> dict:
     """Return corrected benchmark metrics together with controller traces."""
     load, solar = _scenario(config, seed)
-    mpc_metrics, mpc_trace = _run_mpc(config, load, solar, return_trace=True)
-    ppo_metrics, ppo_trace = _run_ppo(config, load, solar, return_trace=True)
+    history = generate_load_series(config, load.index[0] - pd.Timedelta(days=21), 21)
+    forecast = LoadForecaster(config).fit(history).predict(len(load))
+    forecast_load = pd.Series([frame.load_mean_kw for frame in forecast], index=load.index)
+    mpc_metrics, mpc_trace = _run_mpc(config, load, solar, forecast_load, return_trace=True)
+    ppo_metrics, ppo_trace = _run_ppo(config, load, solar, return_trace=True, forecast_load=forecast_load)
     return {
         "metrics": {"mpc": mpc_metrics, "ppo": ppo_metrics},
         "traces": {"mpc": mpc_trace, "ppo": ppo_trace},

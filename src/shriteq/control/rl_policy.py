@@ -38,14 +38,17 @@ class RLPolicy:
     ) -> DispatchPlan:
         if not forecast_frames:
             raise ValueError("forecast_frames must not be empty")
+        frames = forecast_frames[: self.horizon]
+        if len(frames) < self.horizon:
+            raise ValueError(f"RLPolicy requires {self.horizon} forecast frames")
         forecast = np.array(
             [
                 [frame.load_mean_kw, frame.solar_mean_kw, frame.price_inr_per_kwh]
-                for frame in forecast_frames
+                for frame in frames
             ],
             dtype=np.float32,
         )
-        first = forecast_frames[0]
+        first = frames[0]
         observation = {
             "site_state": np.array(
                 [
