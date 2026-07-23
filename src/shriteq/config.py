@@ -43,3 +43,11 @@ class SiteConfig:
     deferred_energy_budget_kwh_per_day: float = 12.0
     deferred_cumulative_penalty: float = 0.25
     low_price_shed_penalty: float = 25.0
+
+    # Optional potential-based reward shaping (Ng et al.). Default off: when
+    # disabled the shaping contributes exactly 0, leaving the bill-exact reward
+    # (and MPC comparability) untouched. Enable only if the demand/arbitrage
+    # signal proves too sparse to learn.
+    reward_shaping_enabled: bool = False
+    reward_shaping_coef: float = 0.0
+    reward_shaping_soft_target_kw: float = 8.0

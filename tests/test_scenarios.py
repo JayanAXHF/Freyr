@@ -29,6 +29,14 @@ def test_flexible_action_mapping_uses_full_range():
     assert sum(high_info["deferred_energy_kwh"].values()) > 0.0
 
 
+def test_ppo_horizon_matches_environment_horizon():
+    import inspect
+    from shriteq.control.rl_policy import RLPolicy
+
+    assert inspect.signature(GridEdgeEnv).parameters["horizon"].default == 96
+    assert inspect.signature(RLPolicy).parameters["horizon"].default == 96
+
+
 @pytest.mark.parametrize("scenario", SCENARIOS)
 def test_named_scenario_mpc_and_ppo_bounds(scenario):
     config = SiteConfig()

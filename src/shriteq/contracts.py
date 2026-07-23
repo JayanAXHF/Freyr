@@ -27,6 +27,7 @@ class SiteState:
     current_billing_peak_kva: float
     current_tariff_block: int
     minutes_to_tariff_change: int
+    remaining_shed_budget_kwh: float = 0.0
 
 
 @dataclass

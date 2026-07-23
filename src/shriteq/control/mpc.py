@@ -45,6 +45,7 @@ class MPCController:
         curtailment = cp.Variable(self.horizon, nonneg=True)
         peak_kva = cp.Variable(self.horizon, nonneg=True)
         unmet = cp.Variable(self.horizon, nonneg=True)
+        self._flex_variables = (hvac, ev, pump)
 
         constraints = [
             battery_charge <= config.max_charge_kw,
@@ -75,6 +76,18 @@ class MPCController:
         constraints.append(
             flex_reduction <= load * (1.0 - config.min_served_load_fraction)
         )
+        steps_per_day = 24 * 60 // config.timestep_minutes
+        step_in_day = (
+            site_state.timestamp.hour * 60 + site_state.timestamp.minute
+        ) // config.timestep_minutes
+        steps_left_in_day = max(1, steps_per_day - step_in_day)
+        constraints.append(
+            cp.sum(flex_reduction[:steps_left_in_day]) * dt_hours
+            <= site_state.remaining_shed_budget_kwh
+        )
+        low_price_factor = np.maximum(0.0, 1.0 - prices / max(float(np.max(prices)), 1e-9))
+        remaining_flex = flex_reduction[:steps_left_in_day] * dt_hours
+        cumulative_flex = cp.cumsum(remaining_flex)
         constraints.append(
             grid_import + battery_discharge + unmet
             == effective_load - solar + curtailment + battery_charge
@@ -106,6 +119,14 @@ class MPCController:
             + demand_rates[-1] * peak_kva[-1]
             + config.wear_cost * cp.sum(battery_charge + battery_discharge) * dt_hours
             + config.unmet_penalty * (cp.sum(unmet) + cp.sum(flex_reduction)) * dt_hours
+            + cp.sum(
+                cp.multiply(
+                    config.low_price_shed_penalty * low_price_factor,
+                    flex_reduction,
+                )
+            )
+            * dt_hours
+            + config.deferred_cumulative_penalty * cp.sum_squares(cumulative_flex)
         )
         self.problem = cp.Problem(objective, constraints)
         try:
@@ -132,4 +153,13 @@ class MPCController:
             pump_fraction=float(np.clip(pump.value[0], 0.0, 1.0)),
             grid_import_kw=float(max(0.0, grid_import.value[0])),
             predicted_peak_kva=float(max(0.0, peak_kva.value[0])),
+        )
+
+    def flex_fractions_at(self, step: int) -> tuple[float, float, float]:
+        """Return the solved horizon flex decisions at ``step``."""
+        if self.problem is None or not 0 <= step < self.horizon:
+            raise ValueError("step is outside the solved MPC horizon")
+        return tuple(
+            float(np.clip(variable.value[step], 0.0, 1.0))
+            for variable in self._flex_variables
         )

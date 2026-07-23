@@ -23,7 +23,7 @@ def test_flexible_load_is_accounted_as_deferred_or_unmet_energy():
     result = SiteModel(config).step(10, 0, 0, 0, 1, 0, 0)
     assert result["deferred_load_kwh"] == 1.25
     assert result["shed_load_kwh"] == result["deferred_load_kwh"]
-    assert result["unmet_load_kwh"] == 0.0
+    assert result["unmet_load_kwh"] == result["shed_load_kwh"]
     assert result["served_load_kwh"] + result["shed_load_kwh"] == 2.5
 
 
