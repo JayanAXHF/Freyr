@@ -16,15 +16,23 @@ class MPCController:
         self.config = config
         self.problem: cp.Problem | None = None
 
-    def solve(self, site_state: SiteState, forecast_frames: list[ForecastFrame]) -> DispatchPlan:
+    def solve(
+        self, site_state: SiteState, forecast_frames: list[ForecastFrame]
+    ) -> DispatchPlan:
         if len(forecast_frames) != self.horizon:
             raise ValueError(f"MPC requires exactly {self.horizon} forecast frames")
 
         config = self.config
         load = np.array([frame.load_mean_kw for frame in forecast_frames], dtype=float)
-        solar = np.array([frame.solar_mean_kw for frame in forecast_frames], dtype=float)
-        prices = np.array([frame.price_inr_per_kwh for frame in forecast_frames], dtype=float)
-        demand_rates = np.array([frame.demand_rate_inr_per_kva for frame in forecast_frames], dtype=float)
+        solar = np.array(
+            [frame.solar_mean_kw for frame in forecast_frames], dtype=float
+        )
+        prices = np.array(
+            [frame.price_inr_per_kwh for frame in forecast_frames], dtype=float
+        )
+        demand_rates = np.array(
+            [frame.demand_rate_inr_per_kva for frame in forecast_frames], dtype=float
+        )
         dt_hours = config.timestep_minutes / 60.0
 
         grid_import = cp.Variable(self.horizon, nonneg=True)
@@ -55,6 +63,7 @@ class MPCController:
         # The billed peak is the maximum import over the horizon.  Because
         # the objective uses peak_kva[-1], make peak_kva a running maximum so
         # earlier spikes cannot escape the demand-charge term.
+        constraints.append(peak_kva[0] >= site_state.current_billing_peak_kva)
         for index in range(1, self.horizon):
             constraints.append(peak_kva[index] >= peak_kva[index - 1])
         effective_load = load - (
@@ -63,7 +72,9 @@ class MPCController:
             + config.pump_flex_max_kw * pump
         )
         flex_reduction = load - effective_load
-        constraints.append(flex_reduction <= load * (1.0 - config.min_served_load_fraction))
+        constraints.append(
+            flex_reduction <= load * (1.0 - config.min_served_load_fraction)
+        )
         constraints.append(
             grid_import + battery_discharge + unmet
             == effective_load - solar + curtailment + battery_charge
@@ -71,15 +82,23 @@ class MPCController:
         constraints.append(
             soc[0]
             == site_state.soc
-            + (battery_charge[0] * config.round_trip_efficiency**0.5 - battery_discharge[0] / config.round_trip_efficiency**0.5)
-            * dt_hours / config.battery_capacity_kwh
+            + (
+                battery_charge[0] * config.round_trip_efficiency**0.5
+                - battery_discharge[0] / config.round_trip_efficiency**0.5
+            )
+            * dt_hours
+            / config.battery_capacity_kwh
         )
         for index in range(1, self.horizon):
             constraints.append(
                 soc[index]
                 == soc[index - 1]
-                + (battery_charge[index] * config.round_trip_efficiency**0.5 - battery_discharge[index] / config.round_trip_efficiency**0.5)
-                * dt_hours / config.battery_capacity_kwh
+                + (
+                    battery_charge[index] * config.round_trip_efficiency**0.5
+                    - battery_discharge[index] / config.round_trip_efficiency**0.5
+                )
+                * dt_hours
+                / config.battery_capacity_kwh
             )
 
         objective = cp.Minimize(

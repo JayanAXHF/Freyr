@@ -84,10 +84,11 @@ def _run_mpc(config: SiteConfig, load: pd.Series, solar: pd.Series, forecast_loa
     controller = MPCController(config)
     rows = []
     dt_hours = config.timestep_minutes / 60
+    RESOLVE_EVERY_N_STEPS = 8  # 2-hour re-solve cadence; see PLAN.md notes on solver cost (~0.38s/solve, 2880 steps/episode)
     plan = None
     for position, timestamp in enumerate(load.index):
         tariff_info = tariff.step(timestamp, 0.0)
-        if position % 96 == 0:
+        if plan is None or position % RESOLVE_EVERY_N_STEPS == 0:
             state = SiteState(timestamp, site.battery.soc, float(load.iloc[position]), float(solar.iloc[position]), tariff.current_billing_peak_kva, tariff_info["tariff_block_id"], tariff_info["minutes_to_tariff_change"])
             plan = controller.solve(state, _frames(config, forecast_load if forecast_load is not None else load, solar, position))
         assert plan is not None

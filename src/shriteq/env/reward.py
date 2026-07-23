@@ -4,6 +4,7 @@ from shriteq.config import SiteConfig
 
 
 def compute_reward(
+    config: SiteConfig,
     grid_import_kwh: float,
     price: float,
     peak_bump_kva: float,
@@ -11,7 +12,6 @@ def compute_reward(
     unmet_kwh: float,
     battery_throughput_kwh: float,
 ) -> float:
-    config = SiteConfig()
     return (
         -(price * grid_import_kwh)
         - (demand_rate * peak_bump_kva)
