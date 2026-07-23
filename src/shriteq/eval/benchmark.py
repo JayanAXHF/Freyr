@@ -25,6 +25,8 @@ METRICS = (
     "peak_kva",
     "unmet_load_kwh",
     "unmet_events",
+    "shed_load_kwh",
+    "shed_events",
     "solar_self_consumption",
 )
 
@@ -74,6 +76,8 @@ def _metrics(config: SiteConfig, rows: list[dict], solar: pd.Series) -> dict:
         "peak_kva": peak,
         "unmet_load_kwh": sum(row["unmet_load_kwh"] for row in rows),
         "unmet_events": sum(row["unmet_load_kwh"] > 0 for row in rows),
+        "shed_load_kwh": sum(row["shed_load_kwh"] for row in rows),
+        "shed_events": sum(row["shed_load_kwh"] > 0 for row in rows),
         "solar_self_consumption": solar_used / solar_total if solar_total else 0.0,
     }
 

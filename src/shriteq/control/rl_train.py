@@ -48,7 +48,7 @@ def train(
     if reward_log.exists():
         reward_log.unlink()
     env = DummyVecEnv([lambda: Monitor(GridEdgeEnv(SiteConfig()))])
-    env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0, clip_reward=100.0)
 
     model = PPO(
         "MultiInputPolicy",

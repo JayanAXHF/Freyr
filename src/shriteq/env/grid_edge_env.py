@@ -117,9 +117,10 @@ class GridEdgeEnv(gym.Env):
             tariff["tod_price_inr_per_kwh"],
             tariff["peak_bump_kva"],
             self.config.demand_charge_inr_per_kva_month,
-            result["unmet_load_kwh"],
+            result["shed_load_kwh"],
             result["battery_throughput_kwh"],
             result["rolling_deferred_energy_kwh"],
+            result["shed_load_kwh"],
         )
         self._position += 1
         terminated = self._position >= self._episode_end

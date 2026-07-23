@@ -22,8 +22,9 @@ def test_flexible_load_is_accounted_as_deferred_or_unmet_energy():
     config = SiteConfig(timestep_minutes=15)
     result = SiteModel(config).step(10, 0, 0, 0, 1, 0, 0)
     assert result["deferred_load_kwh"] == 1.25
-    assert result["unmet_load_kwh"] == result["deferred_load_kwh"]
-    assert result["served_load_kwh"] + result["unmet_load_kwh"] == 2.5
+    assert result["shed_load_kwh"] == result["deferred_load_kwh"]
+    assert result["unmet_load_kwh"] == 0.0
+    assert result["served_load_kwh"] + result["shed_load_kwh"] == 2.5
 
 
 def test_deferral_penalty_uses_rolling_24_hour_window():

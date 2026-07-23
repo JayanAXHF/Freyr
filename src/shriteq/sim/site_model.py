@@ -56,12 +56,12 @@ class SiteModel:
         discharge_kw = min(max(0.0, battery_discharge_kw), self.config.max_discharge_kw)
         soc, actual_charge_kw, actual_discharge_kw = self.battery.apply(charge_kw, discharge_kw, self.config.timestep_minutes / 60)
         grid_import_kw = max(0.0, net_load_kw - solar_kw - actual_discharge_kw + actual_charge_kw)
-        unmet_load_kwh = shed_load_kwh
         solar_used_kwh = min(max(0.0, solar_kw), net_load_kw + actual_charge_kw) * dt_hours
         result = {
             "grid_import_kw": grid_import_kw,
             "grid_import_kwh": grid_import_kw * dt_hours,
-            "unmet_load_kwh": unmet_load_kwh,
+            "shed_load_kwh": shed_load_kwh,
+            "unmet_load_kwh": 0.0,
             "deferred_load_kwh": shed_load_kwh,
             "deferred_energy_kwh": dict(self.deferred_energy_kwh),
             "rolling_deferred_energy_kwh": rolling_deferred_kwh,

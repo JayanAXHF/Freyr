@@ -22,3 +22,13 @@ def test_deferred_penalty_is_nonnegative_and_monotonic():
     config = SiteConfig()
     assert deferred_penalty(config, 0.0) == 0.0
     assert deferred_penalty(config, 20.0) > deferred_penalty(config, 1.25)
+
+
+def test_low_price_shedding_is_penalized_more_than_peak_price_shedding():
+    from shriteq.env.reward import low_price_shed_penalty
+
+    config = SiteConfig()
+    cheap = low_price_shed_penalty(config, 5.0, 1.0)
+    peak = low_price_shed_penalty(config, 10.0, 1.0)
+    assert cheap > peak
+    assert peak == 0.0

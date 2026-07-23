@@ -67,15 +67,15 @@ st.plotly_chart(figure, use_container_width=True)
 
 st.header("Benchmark")
 benchmark_frame = pd.DataFrame(benchmark).T
-mpc_unmet = benchmark_frame.loc["mpc", "unmet_load_kwh"]
-mpc_events = benchmark_frame.loc["mpc", "unmet_events"]
+mpc_unmet = benchmark_frame.loc["mpc", "shed_load_kwh"]
+mpc_events = benchmark_frame.loc["mpc", "shed_events"]
 benchmark_frame["service_quality_ok"] = (
-    (benchmark_frame["unmet_load_kwh"] <= mpc_unmet * 1.5)
-    & (benchmark_frame["unmet_events"] <= mpc_events * 1.5)
+    (benchmark_frame["shed_load_kwh"] <= mpc_unmet * 1.5)
+    & (benchmark_frame["shed_events"] <= mpc_events * 1.5)
 )
 benchmark_frame["savings_pct"] = np.where(
     benchmark_frame["service_quality_ok"],
     (1 - benchmark_frame["total_bill"] / benchmark_frame.loc["mpc", "total_bill"]) * 100,
     np.nan,
 )
-st.dataframe(benchmark_frame[["total_energy_cost", "demand_charge_incurred", "total_bill", "peak_kva", "unmet_load_kwh", "unmet_events", "service_quality_ok", "solar_self_consumption", "savings_pct"]].style.format("{:.2f}"))
+st.dataframe(benchmark_frame[["total_energy_cost", "demand_charge_incurred", "total_bill", "peak_kva", "shed_load_kwh", "shed_events", "unmet_load_kwh", "unmet_events", "service_quality_ok", "solar_self_consumption", "savings_pct"]].style.format("{:.2f}"))
