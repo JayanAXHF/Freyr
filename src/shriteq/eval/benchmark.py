@@ -94,9 +94,15 @@ def _run_mpc(config: SiteConfig, load: pd.Series, solar: pd.Series, forecast_loa
     for position, timestamp in enumerate(load.index):
         tariff_info = tariff.step(timestamp, 0.0)
         if plan is None or position % RESOLVE_EVERY_N_STEPS == 0:
-            state = SiteState(timestamp, site.battery.soc, float(load.iloc[position]), float(solar.iloc[position]), tariff.current_billing_peak_kva, tariff_info["tariff_block_id"], tariff_info["minutes_to_tariff_change"])
+            remaining_budget = max(0.0, config.deferred_energy_budget_kwh_per_day - sum(site.deferred_energy_kwh.values()))
+            state = SiteState(timestamp, site.battery.soc, float(load.iloc[position]), float(solar.iloc[position]), tariff.current_billing_peak_kva, tariff_info["tariff_block_id"], tariff_info["minutes_to_tariff_change"], remaining_budget)
             plan = controller.solve(state, _frames(config, forecast_load if forecast_load is not None else load, solar, position))
         assert plan is not None
+        if plan is not None and position % RESOLVE_EVERY_N_STEPS != 0:
+            hvac, ev, pump = controller.flex_fractions_at(position % RESOLVE_EVERY_N_STEPS)
+            plan.hvac_fraction = hvac
+            plan.ev_fraction = ev
+            plan.pump_fraction = pump
         charge = max(0.0, -plan.battery_kw)
         discharge = max(0.0, plan.battery_kw)
         result = site.step(float(load.iloc[position]), float(solar.iloc[position]), charge, discharge, plan.hvac_fraction, plan.ev_fraction, plan.pump_fraction)

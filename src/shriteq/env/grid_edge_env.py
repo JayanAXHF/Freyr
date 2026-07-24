@@ -20,7 +20,7 @@ class GridEdgeEnv(gym.Env):
         config: SiteConfig | None = None,
         load_series=None,
         solar_series=None,
-        horizon: int = 16,
+        horizon: int = 96,
         forecast_provider=None,
     ):
         super().__init__()
@@ -71,8 +71,8 @@ class GridEdgeEnv(gym.Env):
             [
                 timestamp.hour,
                 self.site.battery.soc,
-                load[0],
-                solar[0],
+                float(self.load_series.iloc[observation_position]),
+                float(self.solar_series.iloc[observation_position]),
                 self.tariff.current_billing_peak_kva,
                 tariff_block_id,
                 minutes,

@@ -47,7 +47,7 @@ def train(
     reward_log = Path("outputs/ppo_training_rewards.csv")
     if reward_log.exists():
         reward_log.unlink()
-    env = DummyVecEnv([lambda: Monitor(GridEdgeEnv(SiteConfig()))])
+    env = DummyVecEnv([lambda: Monitor(GridEdgeEnv(SiteConfig(), horizon=96))])
     env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0, clip_reward=100.0)
 
     model = PPO(

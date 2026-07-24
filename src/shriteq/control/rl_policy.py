@@ -13,7 +13,7 @@ from shriteq.env.grid_edge_env import GridEdgeEnv
 
 
 class RLPolicy:
-    def __init__(self, config: SiteConfig, model_path: str | Path, horizon: int = 16):
+    def __init__(self, config: SiteConfig, model_path: str | Path, horizon: int = 96):
         self.config = config
         self.horizon = horizon
         path = Path(model_path)
