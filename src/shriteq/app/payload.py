@@ -17,9 +17,8 @@ from shriteq.config import SiteConfig
 from shriteq.contracts import ForecastFrame, SiteState
 from shriteq.control.mpc import MPCController
 from shriteq.eval.benchmark import METRICS, run_benchmark_with_traces
-from shriteq.forecast.solar_synth import generate as generate_solar
 from shriteq.forecast.tariff import TariffModel
-from shriteq.sim.load_profiles import generate_load_series
+from shriteq.sim.load_source import resolve_slice, resolve_solar_for
 
 # Target number of points to keep in the animated-playback trace. The raw trace
 # is one 30-day episode (~2880 steps); downsampling keeps the JSON small and the
@@ -29,8 +28,8 @@ TRACE_TARGET_POINTS = 250
 
 def _now_and_forecast(config: SiteConfig) -> tuple[dict, list[dict]]:
     """Reproduce the Streamlit "Now" tiles and next-24h chart inputs."""
-    load = generate_load_series(config, "2026-01-05", 14)
-    solar = generate_solar(config, "2026-01-05", 14)
+    load = resolve_slice(config, "2026-01-05", 14, edge="head")
+    solar = resolve_solar_for(config, load, "2026-01-05", 14)
     frames = [
         ForecastFrame(
             timestamp=load.index[i],

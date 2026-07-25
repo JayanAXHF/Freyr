@@ -51,3 +51,11 @@ class SiteConfig:
     reward_shaping_enabled: bool = False
     reward_shaping_coef: float = 0.0
     reward_shaping_soft_target_kw: float = 8.0
+
+    # Opt-in metered load feed. None (default) means the pipeline is pure
+    # synthetic, byte-identical to before this feature existed. Set
+    # meter_feed_path to a CSV/Parquet file to drive load from real meter data.
+    meter_feed_path: str | None = None
+    meter_timestamp_column: str | None = None
+    meter_value_column: str | None = None
+    meter_max_gap_steps: int = 4

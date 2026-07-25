@@ -4,9 +4,8 @@ import gymnasium as gym
 import numpy as np
 
 from shriteq.config import SiteConfig
-from shriteq.forecast.solar_synth import generate as generate_solar
 from shriteq.forecast.tariff import TariffModel
-from shriteq.sim.load_profiles import generate_load_series
+from shriteq.sim.load_source import resolve_full_series, resolve_solar_for
 from shriteq.sim.site_model import SiteModel
 from shriteq.env.reward import compute_reward, deferred_penalty, peak_potential
 from shriteq.env.forecast_provider import LoadForecasterProvider
@@ -34,12 +33,12 @@ class GridEdgeEnv(gym.Env):
         self.load_series = (
             load_series
             if load_series is not None
-            else generate_load_series(self.config, "2026-01-01", 90)
+            else resolve_full_series(self.config)
         )
         self.solar_series = (
             solar_series
             if solar_series is not None
-            else generate_solar(self.config, "2026-01-01", 90)
+            else resolve_solar_for(self.config, self.load_series, "2026-01-01", 90)
         )
         if self.load_series.index.tz != self.solar_series.index.tz:
             raise ValueError(

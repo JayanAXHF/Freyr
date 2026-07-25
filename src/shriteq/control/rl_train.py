@@ -16,8 +16,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 
 from shriteq.config import SiteConfig
 from shriteq.env.grid_edge_env import GridEdgeEnv
-from shriteq.forecast.solar_synth import generate as generate_solar
-from shriteq.sim.load_profiles import generate_load_series
+from shriteq.sim.load_source import resolve_slice, resolve_solar_for
 
 
 def make_env(config: SiteConfig) -> Callable[[], Monitor]:
@@ -46,8 +45,8 @@ def _build_eval_env(config: SiteConfig) -> VecNormalize:
     start date is disjoint from the default training window (2026-01-01).
     """
     steps = config.episode_days * 96
-    load = generate_load_series(config, "2026-06-01", config.episode_days)
-    solar = generate_solar(config, "2026-06-01", config.episode_days)
+    load = resolve_slice(config, "2026-06-01", config.episode_days, edge="tail")
+    solar = resolve_solar_for(config, load, "2026-06-01", config.episode_days)
     load = load.iloc[:steps]
     solar = solar.iloc[:steps]
 
@@ -104,19 +103,22 @@ def train(
     total_timesteps: int = 4_000_000,
     model_path: str | Path = "models/ppo_gridedge",
     n_envs: int = 1,
+    config: SiteConfig | None = None,
 ) -> PPO:
-    """Train PPO and save it to canonical paths; returns the fitted model.
+    """Train PPO and save it to ``model_path``; returns the fitted model.
 
     Uses a raised discount (``gamma=0.998``) so intraday battery arbitrage is
     credited well past the ~1-day horizon of the SB3 default, parallel envs for
     throughput, and an ``EvalCallback`` on a held-out window to keep the *best*
-    policy rather than the last.
+    policy rather than the last. ``config`` defaults to ``SiteConfig()``
+    (synthetic load); pass one with ``meter_feed_path`` set to train against a
+    real feed instead.
     """
     reward_log = Path("outputs/ppo_training_rewards.csv")
     if reward_log.exists():
         reward_log.unlink()
 
-    config = SiteConfig()
+    config = config or SiteConfig()
     # Default n_envs=1 (in-process DummyVecEnv): each SubprocVecEnv worker is a
     # separate interpreter importing PyTorch (~1-2 GB RSS each), which OOM-crashes
     # an 8 GB Mac at n_envs=4. Only raise n_envs on a machine with ample RAM

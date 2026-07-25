@@ -16,7 +16,7 @@ from shriteq.env.forecast_provider import SeriesForecastProvider
 from shriteq.forecast.tariff import TariffModel
 from shriteq.forecast.load_forecaster import LoadForecaster
 from shriteq.sim.site_model import SiteModel
-from shriteq.sim.load_profiles import generate_load_series
+from shriteq.sim.load_source import resolve_history
 
 
 METRICS = (
@@ -245,9 +245,7 @@ def run_benchmark(
     load, solar = _scenario(config, seed)
     forecast_load = None
     if forecast_driven:
-        history = generate_load_series(
-            config, load.index[0] - pd.Timedelta(days=21), 21
-        )
+        history = resolve_history(config, load.index[0], 21)
         forecast = LoadForecaster(config).fit(history).predict(len(load))
         forecast_load = pd.Series(
             [frame.load_mean_kw for frame in forecast],
@@ -266,7 +264,7 @@ def run_benchmark(
 def run_benchmark_with_traces(config: SiteConfig, seed: int) -> dict:
     """Return corrected benchmark metrics together with controller traces."""
     load, solar = _scenario(config, seed)
-    history = generate_load_series(config, load.index[0] - pd.Timedelta(days=21), 21)
+    history = resolve_history(config, load.index[0], 21)
     forecast = LoadForecaster(config).fit(history).predict(len(load))
     forecast_load = pd.Series(
         [frame.load_mean_kw for frame in forecast], index=load.index
