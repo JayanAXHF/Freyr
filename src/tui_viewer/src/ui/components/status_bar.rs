@@ -2,6 +2,7 @@
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -29,6 +30,17 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Screen::DashboardStatic | Screen::Graph => {}
     }
     spans.push(Span::styled("q:quit", theme::label()));
+
+    // GPIO status indicator (only when buttons are configured): green when the
+    // watcher thread is live, red when it failed to start (see the gpio log).
+    if app.gpio_configured() {
+        let (text, color) = if app.gpio_is_active() {
+            ("  gpio\u{25CF}", theme::GOOD)
+        } else {
+            ("  gpio\u{2717}", theme::BAD)
+        };
+        spans.push(Span::styled(text, Style::default().fg(color)));
+    }
 
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
