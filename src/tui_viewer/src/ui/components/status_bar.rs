@@ -10,10 +10,11 @@ use crate::ui::theme;
 
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut spans = vec![
-        tab("1 Dashboard", app.screen == Screen::DashboardStatic),
+        tab("1 Dash", app.screen == Screen::DashboardStatic),
         tab("2 Live", app.screen == Screen::DashboardLive),
-        tab("3 QR", app.screen == Screen::Qr),
-        Span::raw("  "),
+        tab("3 Graph", app.screen == Screen::Graph),
+        tab("4 QR", app.screen == Screen::Qr),
+        Span::raw(" "),
     ];
 
     match app.screen {
@@ -25,7 +26,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             ));
         }
         Screen::Qr => spans.push(Span::styled("j/k:select  ", theme::label())),
-        Screen::DashboardStatic => {}
+        Screen::DashboardStatic | Screen::Graph => {}
     }
     spans.push(Span::styled("q:quit", theme::label()));
 

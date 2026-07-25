@@ -142,7 +142,12 @@ mod tests {
     #[test]
     fn renders_all_screens_at_kiosk_size() {
         let snap = sample();
-        for screen in [Screen::DashboardStatic, Screen::DashboardLive, Screen::Qr] {
+        for screen in [
+            Screen::DashboardStatic,
+            Screen::DashboardLive,
+            Screen::Graph,
+            Screen::Qr,
+        ] {
             draw(&app_with(Some(snap.clone()), screen), 55, 20);
         }
     }

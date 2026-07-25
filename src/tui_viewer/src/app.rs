@@ -13,6 +13,7 @@ use crate::event::Event;
 pub enum Screen {
     DashboardStatic,
     DashboardLive,
+    Graph,
     Qr,
 }
 
@@ -91,11 +92,12 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Char('1') => self.screen = Screen::DashboardStatic,
             KeyCode::Char('2') => self.screen = Screen::DashboardLive,
-            KeyCode::Char('3') => self.screen = Screen::Qr,
+            KeyCode::Char('3') => self.screen = Screen::Graph,
+            KeyCode::Char('4') => self.screen = Screen::Qr,
             code => match self.screen {
                 Screen::Qr => self.on_qr_key(code),
                 Screen::DashboardLive => self.on_live_key(code),
-                Screen::DashboardStatic => {}
+                Screen::DashboardStatic | Screen::Graph => {}
             },
         }
     }
