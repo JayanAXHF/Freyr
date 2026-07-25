@@ -20,7 +20,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         ),
     };
     let line = Line::from(vec![
-        Span::styled(" ShriTeq GridEdge ", theme::title()),
+        Span::styled(" Freyr ", theme::title()),
         Span::raw(" "),
         Span::styled("\u{25CF}", conn_dot(&app.conn)),
         conn,

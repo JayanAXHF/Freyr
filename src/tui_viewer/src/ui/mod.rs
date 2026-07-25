@@ -34,6 +34,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     match app.screen {
         Screen::DashboardStatic => screens::dashboard_static::render(frame, body, app),
         Screen::DashboardLive => screens::dashboard_live::render(frame, body, app),
+        Screen::Graph => screens::graph::render(frame, body, app),
         Screen::Qr => screens::qr::render(frame, body, app),
     }
     components::status_bar::render(frame, bottom, app);
