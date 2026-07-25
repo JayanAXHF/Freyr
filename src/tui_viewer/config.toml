@@ -1,0 +1,19 @@
+# ShriTeq GridEdge TUI configuration.
+# CLI flags override these: --server <url>, --snapshot <path>, --config <path>.
+
+server_url = "http://127.0.0.1:8000"
+refresh_secs = 30
+
+# QR-code screen: exactly three slots. Slot 1 defaults to the repo; fill in
+# slots 2 and 3 with your own resources (leave url = "" for an empty slot).
+[[qr]]
+label = "GitHub repo"
+url = "https://github.com/JayanAXHF/lvis_shriteq_26"
+
+[[qr]]
+label = ""
+url = ""
+
+[[qr]]
+label = ""
+url = ""
