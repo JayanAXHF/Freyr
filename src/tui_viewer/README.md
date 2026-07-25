@@ -6,14 +6,17 @@ and a QR-code screen for a booth/kiosk.
 
 ## Screens
 
-Switch with `1` / `2` / `3`:
+Switch with `1` / `2` / `3` / `4`:
 
 1. **Dashboard** — "Now" tiles, the next-24h load/solar/grid chart, and the
    MPC-vs-learned benchmark table.
 2. **Live** — animated playback of the 30-day dispatch trace with a moving
    cursor; tiles and the rolling billing peak update on a timer.
    `space` pauses/resumes, `r` restarts the sweep.
-3. **QR** — three configurable resource slots; `j`/`k` (or ↑/↓) selects one and
+3. **Graph** — the next-24h chart on its own, full-screen. The dashboard layout
+   squeezes the chart on a small (3.5") display; this screen gives it the whole
+   area.
+4. **QR** — three configurable resource slots; `j`/`k` (or ↑/↓) selects one and
    renders its QR code.
 
 `q` / `Esc` quits.
@@ -86,7 +89,7 @@ src/
     layout.rs        split helpers
     components/      title_bar, status_bar, now_tiles, forecast_chart,
                      benchmark_table, qr_panel  (one file per widget)
-    screens/         dashboard_static, dashboard_live, qr
+    screens/         dashboard_static, dashboard_live, graph, qr
 ```
 
 ## Develop
