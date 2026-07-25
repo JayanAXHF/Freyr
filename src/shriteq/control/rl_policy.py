@@ -10,6 +10,7 @@ from stable_baselines3.common.monitor import Monitor
 from shriteq.config import SiteConfig
 from shriteq.contracts import DispatchPlan, ForecastFrame, SiteState
 from shriteq.env.grid_edge_env import GridEdgeEnv
+from shriteq.env.observation import build_forecast_matrix, build_site_state_vector
 
 
 class RLPolicy:
@@ -41,26 +42,23 @@ class RLPolicy:
         frames = forecast_frames[: self.horizon]
         if len(frames) < self.horizon:
             raise ValueError(f"RLPolicy requires {self.horizon} forecast frames")
-        forecast = np.array(
-            [
-                [frame.load_mean_kw, frame.solar_mean_kw, frame.price_inr_per_kwh]
-                for frame in frames
-            ],
-            dtype=np.float32,
+        forecast = build_forecast_matrix(
+            [frame.load_mean_kw for frame in frames],
+            [frame.solar_mean_kw for frame in frames],
+            [frame.price_inr_per_kwh for frame in frames],
         )
         first = frames[0]
         observation = {
-            "site_state": np.array(
-                [
-                    site_state.timestamp.hour,
-                    site_state.soc,
-                    site_state.current_load_kw,
-                    site_state.current_solar_kw,
-                    site_state.current_billing_peak_kva,
-                    site_state.current_tariff_block,
-                    site_state.minutes_to_tariff_change,
-                ],
-                dtype=np.float32,
+            "site_state": build_site_state_vector(
+                timestamp=site_state.timestamp,
+                soc=site_state.soc,
+                load_kw=site_state.current_load_kw,
+                solar_kw=site_state.current_solar_kw,
+                billing_peak_kva=site_state.current_billing_peak_kva,
+                price=first.price_inr_per_kwh,
+                tariff_block=site_state.current_tariff_block,
+                minutes_to_change=site_state.minutes_to_tariff_change,
+                remaining_shed_budget_kwh=site_state.remaining_shed_budget_kwh,
             ),
             "forecast": forecast,
         }
@@ -70,7 +68,8 @@ class RLPolicy:
         action, _ = self.model.predict(normalized, deterministic=True)
         action = np.clip(np.asarray(action, dtype=np.float32).reshape(-1), -1.0, 1.0)
         battery = float(action[0])
-        flex = (action[1:] + 1.0) / 2.0
+        # Mirror GridEdgeEnv: flex fraction is the clipped positive action.
+        flex = np.clip(action[1:], 0.0, 1.0)
         return DispatchPlan(
             step=0,
             battery_kw=max(0.0, -battery) * self.config.max_discharge_kw

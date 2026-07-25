@@ -27,14 +27,15 @@ def test_deferred_penalty_is_nonnegative_and_monotonic():
     assert deferred_penalty(config, 20.0) > deferred_penalty(config, 1.25)
 
 
-def test_low_price_shedding_is_penalized_more_than_peak_price_shedding():
-    from shriteq.env.reward import low_price_shed_penalty
+def test_shed_energy_penalty_scales_up_with_price():
+    from shriteq.env.reward import shed_energy_penalty
 
-    config = SiteConfig()
-    cheap = low_price_shed_penalty(config, 5.0, 1.0)
-    peak = low_price_shed_penalty(config, 10.0, 1.0)
-    assert cheap > peak
-    assert peak == 0.0
+    cheap = shed_energy_penalty(5.0, 1.0)
+    peak = shed_energy_penalty(10.0, 1.0)
+    # Shedding must cost its avoided-energy value, so it is penalized *more*
+    # at peak price -- the opposite of the old (backwards) low-price term.
+    assert peak > cheap > 0.0
+    assert shed_energy_penalty(10.0, 0.0) == 0.0
 
 
 def test_environment_reward_matches_info_arithmetic():
@@ -56,5 +57,6 @@ def test_environment_reward_matches_info_arithmetic():
         info["shed_load_kwh"],
     )
     assert info["shed_load_kwh"] > 0.0
-    assert info["unmet_load_kwh"] == 0.0
+    # Shed flexible load is now recorded as unmet service (no payback modelled).
+    assert info["unmet_load_kwh"] == info["shed_load_kwh"]
     assert reward == expected

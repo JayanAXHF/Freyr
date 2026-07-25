@@ -61,7 +61,9 @@ class SiteModel:
             "grid_import_kw": grid_import_kw,
             "grid_import_kwh": grid_import_kw * dt_hours,
             "shed_load_kwh": shed_load_kwh,
-            "unmet_load_kwh": 0.0,
+            # Deferred flexible load is never paid back in this simulator, so the
+            # shed energy is a genuine service deficit rather than a free saving.
+            "unmet_load_kwh": shed_load_kwh,
             "deferred_load_kwh": shed_load_kwh,
             "deferred_energy_kwh": dict(self.deferred_energy_kwh),
             "rolling_deferred_energy_kwh": rolling_deferred_kwh,

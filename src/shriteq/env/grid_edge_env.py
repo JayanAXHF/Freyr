@@ -8,8 +8,13 @@ from shriteq.forecast.solar_synth import generate as generate_solar
 from shriteq.forecast.tariff import TariffModel
 from shriteq.sim.load_profiles import generate_load_series
 from shriteq.sim.site_model import SiteModel
-from shriteq.env.reward import compute_reward, deferred_penalty
+from shriteq.env.reward import compute_reward, deferred_penalty, peak_potential
 from shriteq.env.forecast_provider import LoadForecasterProvider
+from shriteq.env.observation import (
+    SITE_STATE_DIM,
+    build_forecast_matrix,
+    build_site_state_vector,
+)
 
 
 class GridEdgeEnv(gym.Env):
@@ -49,7 +54,7 @@ class GridEdgeEnv(gym.Env):
         self.observation_space = gym.spaces.Dict(
             {
                 "site_state": gym.spaces.Box(
-                    -np.inf, np.inf, shape=(7,), dtype=np.float32
+                    -np.inf, np.inf, shape=(SITE_STATE_DIM,), dtype=np.float32
                 ),
                 "forecast": gym.spaces.Box(
                     -np.inf, np.inf, shape=(horizon, 3), dtype=np.float32
@@ -58,26 +63,31 @@ class GridEdgeEnv(gym.Env):
         )
         self._position = 0
         self._episode_end = 0
+        self._prev_potential = 0.0
 
     def _observation(self):
         observation_position = min(self._position, len(self.load_series) - 1)
         load, solar, prices = self.forecast_provider.forecast(
             observation_position, self.horizon
         )
-        forecast = np.column_stack((load, solar, prices)).astype(np.float32)
+        forecast = build_forecast_matrix(load, solar, prices)
         timestamp = self.load_series.index[observation_position]
         tariff_block_id, price, minutes = self.tariff.peek(timestamp)
-        state = np.array(
-            [
-                timestamp.hour,
-                self.site.battery.soc,
-                float(self.load_series.iloc[observation_position]),
-                float(self.solar_series.iloc[observation_position]),
-                self.tariff.current_billing_peak_kva,
-                tariff_block_id,
-                minutes,
-            ],
-            dtype=np.float32,
+        remaining_shed_budget_kwh = max(
+            0.0,
+            self.config.deferred_energy_budget_kwh_per_day
+            - sum(self.site.deferred_energy_kwh.values()),
+        )
+        state = build_site_state_vector(
+            timestamp=timestamp,
+            soc=self.site.battery.soc,
+            load_kw=float(self.load_series.iloc[observation_position]),
+            solar_kw=float(self.solar_series.iloc[observation_position]),
+            billing_peak_kva=self.tariff.current_billing_peak_kva,
+            price=price,
+            tariff_block=tariff_block_id,
+            minutes_to_change=minutes,
+            remaining_shed_budget_kwh=remaining_shed_budget_kwh,
         )
         return {"site_state": state, "forecast": forecast}
 
@@ -88,6 +98,7 @@ class GridEdgeEnv(gym.Env):
         self._episode_end = self._position + self.config.episode_days * 96
         self.site = SiteModel(self.config)
         self.tariff = TariffModel(self.config)
+        self._prev_potential = 0.0
         return self._observation(), {}
 
     def step(self, action):
@@ -95,8 +106,11 @@ class GridEdgeEnv(gym.Env):
         battery = float(action[0])
         charge = max(0.0, battery) * self.config.max_charge_kw
         discharge = max(0.0, -battery) * self.config.max_discharge_kw
-        # Use the complete policy output range for flexible-load fractions.
-        flex = (np.clip(action[1:], -1.0, 1.0) + 1.0) / 2.0
+        # Neutral/negative actions mean "do not shed"; shedding must be chosen
+        # explicitly by pushing an action positive. This keeps an untrained or
+        # entropy-exploring policy at ~zero shedding instead of the old 50%,
+        # which alone saturated the daily shed budget.
+        flex = np.clip(action[1:], 0.0, 1.0)
         timestamp = self.load_series.index[self._position]
         result = self.site.step(
             self.load_series.iloc[self._position],
@@ -117,6 +131,10 @@ class GridEdgeEnv(gym.Env):
             result["rolling_deferred_energy_kwh"],
             result["shed_load_kwh"],
         )
+        # Optional potential-based shaping (default off -> contributes 0).
+        potential = peak_potential(self.config, result["grid_import_kw"])
+        reward += potential - self._prev_potential
+        self._prev_potential = potential
         self._position += 1
         terminated = self._position >= self._episode_end
         info = {

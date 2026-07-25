@@ -70,15 +70,18 @@ def _metrics(config: SiteConfig, rows: list[dict], solar: pd.Series) -> dict:
     solar_total = float(solar.sum() * config.timestep_minutes / 60)
     solar_used = sum(row["solar_used_kwh"] for row in rows)
     demand_charge = peak * config.demand_charge_inr_per_kva_month
+    # Ignore solver/float dust: MPC can return flex fractions of ~1e-11, which
+    # counted as thousands of phantom shed "events" despite ~0 kWh shed.
+    event_eps_kwh = 1e-3
     return {
         "total_energy_cost": energy_cost,
         "demand_charge_incurred": demand_charge,
         "total_bill": energy_cost + demand_charge,
         "peak_kva": peak,
         "unmet_load_kwh": sum(row["unmet_load_kwh"] for row in rows),
-        "unmet_events": sum(row["unmet_load_kwh"] > 0 for row in rows),
+        "unmet_events": sum(row["unmet_load_kwh"] > event_eps_kwh for row in rows),
         "shed_load_kwh": sum(row["shed_load_kwh"] for row in rows),
-        "shed_events": sum(row["shed_load_kwh"] > 0 for row in rows),
+        "shed_events": sum(row["shed_load_kwh"] > event_eps_kwh for row in rows),
         "solar_self_consumption": solar_used / solar_total if solar_total else 0.0,
     }
 
@@ -121,13 +124,15 @@ def _run_ppo(config: SiteConfig, load: pd.Series, solar: pd.Series, model_path: 
     for _ in range(len(load)):
         control_load = forecast_load if forecast_load is not None else load
         frames = _frames(config, control_load, solar, env._position)
-        state = SiteState(timestamp=load.index[len(rows)], soc=env.site.battery.soc, current_load_kw=float(control_load.iloc[len(rows)]), current_solar_kw=float(solar.iloc[len(rows)]), current_billing_peak_kva=env.tariff.current_billing_peak_kva, current_tariff_block=env.tariff.peek(load.index[len(rows)])[0], minutes_to_tariff_change=env.tariff.peek(load.index[len(rows)])[2])
+        remaining_budget = max(0.0, config.deferred_energy_budget_kwh_per_day - sum(env.site.deferred_energy_kwh.values()))
+        state = SiteState(timestamp=load.index[len(rows)], soc=env.site.battery.soc, current_load_kw=float(control_load.iloc[len(rows)]), current_solar_kw=float(solar.iloc[len(rows)]), current_billing_peak_kva=env.tariff.current_billing_peak_kva, current_tariff_block=env.tariff.peek(load.index[len(rows)])[0], minutes_to_tariff_change=env.tariff.peek(load.index[len(rows)])[2], remaining_shed_budget_kwh=remaining_budget)
         plan = policy.solve(state, frames)
         action = np.array([
             -plan.battery_kw / config.max_discharge_kw if plan.battery_kw >= 0 else -plan.battery_kw / config.max_charge_kw,
-            plan.hvac_fraction * 2 - 1,
-            plan.ev_fraction * 2 - 1,
-            plan.pump_fraction * 2 - 1,
+            # Flex fraction now maps directly to the action (env clips to [0,1]).
+            plan.hvac_fraction,
+            plan.ev_fraction,
+            plan.pump_fraction,
         ], dtype=np.float32)
         observation, _, terminated, _, info = env.step(action)
         rows.append({**info, "timestamp": load.index[len(rows)], "energy_cost": info["grid_import_kwh"] * info["tod_price_inr_per_kwh"], "solar_used_kwh": info["solar_used_kwh"]})
