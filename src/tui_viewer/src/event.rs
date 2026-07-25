@@ -1,7 +1,7 @@
 //! Input + tick event loop. Emits key/resize events and a periodic tick used to
 //! drive the animation and drain the data channel.
 
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 
@@ -13,11 +13,26 @@ pub enum Event {
     /// Terminal resize; the payload is unused today but a resize still forces a
     /// redraw via the main loop.
     Resize(#[allow(dead_code)] u16, #[allow(dead_code)] u16),
+    /// A GPIO push-button press mapped to a screen action. Only constructed on
+    /// Linux (Raspberry Pi); the variant is still handled on every platform.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Gpio(GpioAction),
 }
 
-/// Spawn the event thread. `tick_ms` is the animation/refresh cadence.
-pub fn spawn(tick_ms: u64) -> Receiver<Event> {
-    let (tx, rx) = mpsc::channel();
+/// What a GPIO button does when pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpioAction {
+    /// Cycle to the next screen.
+    Next,
+    /// Cycle to the previous screen.
+    Prev,
+    /// Jump to a specific screen by 0-based index.
+    Screen(usize),
+}
+
+/// Spawn the terminal-input thread. `tick_ms` is the animation/refresh cadence.
+/// Events are sent on the shared `tx` (also used by the GPIO thread).
+pub fn spawn(tx: Sender<Event>, tick_ms: u64) {
     thread::spawn(move || {
         let tick = Duration::from_millis(tick_ms);
         loop {
@@ -42,5 +57,4 @@ pub fn spawn(tick_ms: u64) -> Receiver<Event> {
             }
         }
     });
-    rx
 }

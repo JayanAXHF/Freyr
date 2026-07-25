@@ -17,6 +17,7 @@ ureq = { version = "3.3.0", features = ["json"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
 memmap2 = "0.9"
+rppal = "0.22.1"
 
 # NOTE: the Raspberry Pi cross-linker lives in .cargo/config.toml, not here — a
 # bare `linker` key in Cargo.toml is ignored by Cargo ("unused manifest key").
