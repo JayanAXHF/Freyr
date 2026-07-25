@@ -4,9 +4,11 @@ mod app;
 mod config;
 mod data;
 mod event;
+mod gpio;
 mod ui;
 
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 use anyhow::Result;
 use clap::Parser;
@@ -36,6 +38,10 @@ struct Args {
     /// no TUI. Useful for CI and checking the server contract.
     #[arg(long)]
     check: bool,
+    /// Run the GPIO diagnostic (print config + live pin levels) and exit — no
+    /// TUI. Use this to debug button wiring/permissions on the Pi.
+    #[arg(long)]
+    gpio_test: bool,
 }
 
 fn main() -> Result<()> {
@@ -43,6 +49,10 @@ fn main() -> Result<()> {
     let mut config = Config::load(args.config.as_deref());
     if let Some(server) = args.server {
         config.server_url = server;
+    }
+
+    if args.gpio_test {
+        return gpio::diagnose(&config.gpio);
     }
 
     if args.check {
@@ -58,10 +68,14 @@ fn main() -> Result<()> {
     };
 
     let data_rx = data::spawn(source);
-    let event_rx = event::spawn(TICK_MS);
+
+    // One event channel shared by the terminal-input thread and the GPIO thread.
+    let (event_tx, event_rx) = mpsc::channel();
+    event::spawn(event_tx.clone(), TICK_MS);
+    let gpio_active = gpio::spawn(event_tx, config.gpio.clone());
 
     let mut terminal = ratatui::init();
-    let mut app = App::new(config, data_rx);
+    let mut app = App::new(config, data_rx, gpio_active);
     let result = run(&mut terminal, &mut app, event_rx);
     ratatui::restore();
     result
@@ -119,8 +133,10 @@ mod tests {
     }
 
     fn app_with(snapshot: Option<Snapshot>, screen: Screen) -> App {
+        use std::sync::Arc;
+        use std::sync::atomic::AtomicBool;
         let (_tx, rx) = mpsc::channel();
-        let mut app = App::new(Config::default(), rx);
+        let mut app = App::new(Config::default(), rx, Arc::new(AtomicBool::new(false)));
         app.snapshot = snapshot;
         app.screen = screen;
         app
