@@ -69,6 +69,11 @@ def cache_in_tmp(tmp_path, monkeypatch):
     monkeypatch.setattr(dc, "TRACES_PATH", tmp_path / "traces.parquet")
     monkeypatch.setattr(dc, "SERIES_PATH", tmp_path / "series.parquet")
     monkeypatch.setattr(dc, "META_PATH", tmp_path / "meta.json")
+    # The JSON siblings must be isolated too, or build_cache writes them to the
+    # real outputs/dashboard/ via the module-level defaults and clobbers it.
+    monkeypatch.setattr(dc, "TRACES_JSON_PATH", tmp_path / "traces.json")
+    monkeypatch.setattr(dc, "SERIES_JSON_PATH", tmp_path / "series.json")
+    monkeypatch.setattr(dc, "CONFIG_JSON_PATH", tmp_path / "config.json")
     monkeypatch.setattr(dc, "run_benchmark_with_traces", lambda config, seed: _bundle())
     return tmp_path
 
@@ -94,6 +99,19 @@ def test_build_then_load_round_trip(cache_in_tmp):
     assert loaded["metrics"]["mpc"]["total_bill"] == 100.0
     assert loaded["metrics"]["ppo"]["total_bill"] == 84.0
     assert loaded["meta"]["seed"] == 42
+
+    # JSON siblings for the web app are written next to the parquet, isolated to
+    # the tmp cache dir (guards against clobbering the real outputs/dashboard/).
+    import json
+
+    trace_json = json.loads(dc.TRACES_JSON_PATH.read_text())
+    assert len(trace_json) == len(traces)
+    assert isinstance(trace_json[0]["timestamp"], str)  # ISO-8601 string
+    series_json = json.loads(dc.SERIES_JSON_PATH.read_text())
+    assert set(series_json[0]) == {"timestamp", "load", "solar"}
+    config_json = json.loads(dc.CONFIG_JSON_PATH.read_text())
+    assert config_json["tariff_blocks"] and "tz" in config_json
+    assert cache_in_tmp.joinpath("traces.json").exists()
 
 
 def test_cache_is_stale_rules(tmp_path):

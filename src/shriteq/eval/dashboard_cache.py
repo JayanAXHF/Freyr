@@ -26,6 +26,13 @@ TRACES_PATH = CACHE_DIR / "traces.parquet"
 SERIES_PATH = CACHE_DIR / "series.parquet"
 META_PATH = CACHE_DIR / "meta.json"
 
+# Browser-ready JSON siblings. The parquet files above are the source of truth
+# for the Python/Streamlit side; these mirror the same data as JSON so a Node
+# web app (Astro API routes) can serve it live without a parquet reader.
+TRACES_JSON_PATH = CACHE_DIR / "traces.json"
+SERIES_JSON_PATH = CACHE_DIR / "series.json"
+CONFIG_JSON_PATH = CACHE_DIR / "config.json"
+
 DEPLOYED_MODEL_PATH = "models/ppo_gridedge.zip"
 
 # Only these scalar columns are persisted from each trace row. MPC rows (raw
@@ -72,6 +79,56 @@ def _trace_frame(rows: list[dict], controller: str) -> pd.DataFrame:
     return frame
 
 
+def _iso_timestamps(frame: pd.DataFrame, column: str = "timestamp") -> pd.DataFrame:
+    """Return a copy of ``frame`` with ``column`` as ISO-8601 strings."""
+    out = frame.copy()
+    out[column] = pd.to_datetime(out[column]).map(lambda ts: ts.isoformat())
+    return out
+
+
+def write_json_exports(config: SiteConfig, traces: pd.DataFrame, series: pd.DataFrame) -> None:
+    """Dump ``traces``/``series``/config as browser-ready JSON siblings.
+
+    ``metrics.json`` and ``meta.json`` are already JSON and are reused as-is;
+    this only adds the two parquet mirrors plus a small ``config.json`` so the
+    web app can draw tariff bands without a Python runtime.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    trace_records = _iso_timestamps(traces).to_dict("records")
+    TRACES_JSON_PATH.write_text(json.dumps(trace_records, default=_json_default))
+
+    series_out = series.reset_index()
+    series_out = _iso_timestamps(series_out, series_out.columns[0]).rename(
+        columns={series_out.columns[0]: "timestamp"}
+    )
+    SERIES_JSON_PATH.write_text(
+        json.dumps(series_out.to_dict("records"), default=_json_default)
+    )
+
+    config_out = {
+        "tariff_blocks": config.tariff_blocks,
+        "demand_charge_inr_per_kva_month": config.demand_charge_inr_per_kva_month,
+        "tz": config.tz,
+        "timestep_minutes": config.timestep_minutes,
+    }
+    CONFIG_JSON_PATH.write_text(json.dumps(config_out, indent=2, default=_json_default))
+
+
+def export_json_from_disk(config: SiteConfig | None = None) -> bool:
+    """Regenerate the JSON siblings from an existing parquet/JSON cache.
+
+    Useful when the parquet cache already exists but the JSON mirrors are
+    missing or stale. Returns ``False`` when there is no cache to read.
+    """
+    config = config or SiteConfig()
+    bundle = load_cache()
+    if bundle is None:
+        return False
+    write_json_exports(config, bundle["traces"], bundle["series"])
+    return True
+
+
 def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
     """Run the traced benchmark once and persist it under :data:`CACHE_DIR`.
 
@@ -112,6 +169,8 @@ def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
         "model_mtime": _model_mtime(DEPLOYED_MODEL_PATH),
     }
     META_PATH.write_text(json.dumps(meta, indent=2, default=_json_default))
+
+    write_json_exports(config, traces, series)
 
     return {
         "metrics": bundle["metrics"],

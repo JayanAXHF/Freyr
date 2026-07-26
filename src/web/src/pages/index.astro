@@ -1,0 +1,89 @@
+---
+import Layout from '../layouts/Layout.astro';
+import HeroBanner from '../components/HeroBanner.tsx';
+import KpiRow from '../components/KpiRow.tsx';
+import DispatchChart from '../components/DispatchChart.tsx';
+import CostBreakdown from '../components/CostBreakdown.tsx';
+import MetricsTable from '../components/MetricsTable.tsx';
+import ThemeToggle from '../components/ThemeToggle.tsx';
+import {
+  CacheMissingError,
+  getDays,
+  getMeta,
+  getMetrics,
+  isStale,
+} from '../lib/cache';
+
+export const prerender = false;
+
+let error: string | null = null;
+let data:
+  | Awaited<ReturnType<typeof loadData>>
+  | null = null;
+
+async function loadData() {
+  const [metrics, meta, days] = await Promise.all([
+    getMetrics(),
+    getMeta(),
+    getDays(),
+  ]);
+  const stale = await isStale(meta);
+  const savingsPct = metrics.mpc.total_bill
+    ? (1 - metrics.ppo.total_bill / metrics.mpc.total_bill) * 100
+    : 0;
+  return { metrics, meta, days, stale, savingsPct };
+}
+
+try {
+  data = await loadData();
+} catch (err) {
+  if (err instanceof CacheMissingError) {
+    error = err.message;
+  } else {
+    throw err;
+  }
+}
+
+const initialDay = data ? data.days[Math.floor(data.days.length / 2)] : '';
+---
+
+<Layout>
+  <main class="mx-auto max-w-6xl space-y-10 px-4 py-8 sm:px-6">
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Shriteq GridEdge</h1>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">
+          Learned dispatch vs MPC — grid-edge load balancing
+        </p>
+      </div>
+      <ThemeToggle client:load />
+    </header>
+
+    {error ? (
+      <div class="rounded-xl border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+        <p class="font-semibold">No dashboard cache found.</p>
+        <p class="mt-1 text-sm">{error}</p>
+        <pre class="mt-3 overflow-x-auto rounded bg-red-100 p-3 text-sm dark:bg-red-900/50">uv run python scripts_precompute_dashboard.py</pre>
+      </div>
+    ) : (
+      <>
+        <HeroBanner
+          learnedBill={data!.metrics.ppo.total_bill}
+          mpcBill={data!.metrics.mpc.total_bill}
+          savingsPct={data!.savingsPct}
+          stale={data!.stale}
+          meta={data!.meta}
+        />
+        <KpiRow mpc={data!.metrics.mpc} learned={data!.metrics.ppo} />
+        <DispatchChart client:load days={data!.days} initialDay={initialDay} />
+        <CostBreakdown client:load mpc={data!.metrics.mpc} learned={data!.metrics.ppo} />
+        <MetricsTable mpc={data!.metrics.mpc} learned={data!.metrics.ppo} />
+      </>
+    )}
+
+    <footer class="border-t border-neutral-200 pt-4 text-xs text-neutral-400 dark:border-neutral-800">
+      Data: <code>outputs/dashboard/</code> · regenerate with
+      <code>uv run python scripts_precompute_dashboard.py</code>
+    </footer>
+  </main>
+</Layout>
