@@ -3,7 +3,7 @@
 .uv/
 
 # --- Python Build & Caching ---
-__pycache__/
+/src/shriteq/__pycache__/
 *.py[cod]
 *$py.class
 build/
@@ -21,6 +21,8 @@ wheels/
 .ruff_cache/
 .coverage
 htmlcov/
+/outputs
+/models
 
 # --- IDEs & OS Files ---
 .vscode/
