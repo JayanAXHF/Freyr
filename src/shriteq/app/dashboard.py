@@ -1,4 +1,4 @@
-"""Streamlit dashboard for GridEdge dispatch evaluation.
+"""Streamlit dashboard for Freyr dispatch evaluation.
 
 Reads a precomputed benchmark cache (``outputs/dashboard/``) instead of running
 the 30-day MPC/PPO benchmark on every page load, so startup is near-instant. Run
@@ -16,7 +16,7 @@ from plotly.subplots import make_subplots
 from shriteq.config import SiteConfig
 from shriteq.eval.dashboard_cache import cache_is_stale, load_cache
 
-st.set_page_config(page_title="Shriteq GridEdge", layout="wide")
+st.set_page_config(page_title="Freyr", layout="wide")
 config = SiteConfig()
 
 # The deployed policy is stored under "ppo" in the benchmark but is a
@@ -68,7 +68,7 @@ def dashboard_data():
 
 bundle = dashboard_data()
 
-st.title("Shriteq GridEdge")
+st.title("Freyr")
 
 if bundle is None:
     st.error(
