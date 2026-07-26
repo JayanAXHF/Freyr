@@ -22,6 +22,11 @@ wheels/
 .coverage
 htmlcov/
 /models
+/**/*.log
+/**/*.png
+/**/*/node_modules
+/**/*.pyc
+/**/.astro/*
 
 # --- IDEs & OS Files ---
 .vscode/
