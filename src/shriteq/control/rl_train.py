@@ -1,4 +1,4 @@
-"""PPO training entry point for the GridEdge environment."""
+"""PPO training entry point for the GridEdge (Freyr) environment."""
 
 from __future__ import annotations
 
