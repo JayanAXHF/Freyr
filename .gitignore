@@ -1,0 +1,31 @@
+# --- UV & Virtual Environments ---
+.venv/
+.uv/
+
+# --- Python Build & Caching ---
+/src/shriteq/__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+wheels/
+*.egg-info/
+
+# --- Environment Variables & Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Testing & Code Quality ---
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+/outputs
+/models
+
+# --- IDEs & OS Files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
