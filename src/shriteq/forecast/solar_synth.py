@@ -33,9 +33,18 @@ def generate(config: SiteConfig, start, days: int) -> pd.Series:
     )
 
     month_derate = {
-        1: 0.92, 2: 0.93, 3: 0.90, 4: 0.86, 5: 0.83,
-        6: 0.65, 7: 0.55, 8: 0.60, 9: 0.72, 10: 0.85,
-        11: 0.90, 12: 0.95,
+        1: 0.92,
+        2: 0.93,
+        3: 0.90,
+        4: 0.86,
+        5: 0.83,
+        6: 0.65,
+        7: 0.55,
+        8: 0.60,
+        9: 0.72,
+        10: 0.85,
+        11: 0.90,
+        12: 0.95,
     }
     derate = np.array([month_derate[month] for month in times.month])
     # Cloud variability is a multiplier around clear conditions; the seasonal
@@ -52,14 +61,18 @@ def generate(config: SiteConfig, start, days: int) -> pd.Series:
             1.0,
         )
 
-    solar_kw = np.maximum(0.0, irradiance["poa_global"].to_numpy() / 1000.0 * derate * cloud * 10.0)
+    solar_kw = np.maximum(
+        0.0, irradiance["poa_global"].to_numpy() / 1000.0 * derate * cloud * 10.0
+    )
     return pd.Series(solar_kw, index=times, name="solar_kw")
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    generate(SiteConfig(), "2026-01-05", 7).plot(figsize=(12, 4), title="Synthetic weekly solar profile")
+    generate(SiteConfig(), "2026-01-05", 7).plot(
+        figsize=(12, 4), title="Synthetic weekly solar profile"
+    )
     plt.ylabel("Solar generation (kW)")
     plt.tight_layout()
     plt.savefig("/tmp/solar_check.png")

@@ -65,7 +65,9 @@ def _model_mtime(model_path: str | Path) -> float | None:
 
 def _trace_frame(rows: list[dict], controller: str) -> pd.DataFrame:
     """Project ``rows`` onto the scalar whitelist and tag the controller."""
-    frame = pd.DataFrame([{column: row[column] for column in TRACE_COLUMNS} for row in rows])
+    frame = pd.DataFrame(
+        [{column: row[column] for column in TRACE_COLUMNS} for row in rows]
+    )
     frame["controller"] = controller
     return frame
 
@@ -81,7 +83,9 @@ def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    METRICS_PATH.write_text(json.dumps(bundle["metrics"], indent=2, default=_json_default))
+    METRICS_PATH.write_text(
+        json.dumps(bundle["metrics"], indent=2, default=_json_default)
+    )
 
     traces = pd.concat(
         [
@@ -119,7 +123,9 @@ def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
 
 def load_cache() -> dict | None:
     """Return the parsed cache bundle, or ``None`` if any file is missing."""
-    if not all(path.exists() for path in (METRICS_PATH, TRACES_PATH, SERIES_PATH, META_PATH)):
+    if not all(
+        path.exists() for path in (METRICS_PATH, TRACES_PATH, SERIES_PATH, META_PATH)
+    ):
         return None
     return {
         "metrics": json.loads(METRICS_PATH.read_text()),
