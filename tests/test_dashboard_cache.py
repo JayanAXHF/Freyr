@@ -9,6 +9,7 @@ staleness check in isolation.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -41,9 +42,20 @@ def _ppo_row(ts):
 
 def _bundle(n=96):
     idx = pd.date_range("2026-01-05", periods=n, freq="15min", tz="Asia/Kolkata")
-    metrics = {"total_bill": 1.0, "total_energy_cost": 1.0, "demand_charge_incurred": 1.0}
+    # Real metrics from ``_metrics`` are numpy scalars (peak_kva -> np.float32,
+    # *_events -> numpy ints); use the same types so the JSON round-trip guards
+    # against the "float32 is not JSON serializable" regression.
+    metrics = {
+        "total_energy_cost": np.float32(1.0),
+        "demand_charge_incurred": np.float32(1.0),
+        "peak_kva": np.float32(9.5),
+        "shed_events": np.int64(0),
+    }
     return {
-        "metrics": {"mpc": {**metrics, "total_bill": 100.0}, "ppo": {**metrics, "total_bill": 84.0}},
+        "metrics": {
+            "mpc": {**metrics, "total_bill": np.float32(100.0)},
+            "ppo": {**metrics, "total_bill": np.float32(84.0)},
+        },
         "traces": {"mpc": [_mpc_row(t) for t in idx], "ppo": [_ppo_row(t) for t in idx]},
         "load": pd.Series(range(n), index=idx, dtype=float, name="load"),
         "solar": pd.Series(range(n), index=idx, dtype=float, name="solar"),
