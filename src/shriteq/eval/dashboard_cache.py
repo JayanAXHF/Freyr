@@ -14,6 +14,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from shriteq.config import SiteConfig
@@ -45,6 +46,18 @@ TRACE_COLUMNS = (
 )
 
 
+def _json_default(obj):
+    """Coerce numpy scalars to native Python for ``json.dumps``.
+
+    ``_metrics`` returns numpy types (e.g. ``peak_kva`` is ``np.float32``,
+    ``shed_events``/``unmet_events`` are numpy ints), which ``json`` cannot
+    serialize on its own.
+    """
+    if isinstance(obj, np.generic):
+        return obj.item()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 def _model_mtime(model_path: str | Path) -> float | None:
     path = Path(model_path)
     return path.stat().st_mtime if path.exists() else None
@@ -68,7 +81,7 @@ def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    METRICS_PATH.write_text(json.dumps(bundle["metrics"], indent=2))
+    METRICS_PATH.write_text(json.dumps(bundle["metrics"], indent=2, default=_json_default))
 
     traces = pd.concat(
         [
@@ -94,7 +107,7 @@ def build_cache(config: SiteConfig | None = None, seed: int = 42) -> dict:
         "model_path": DEPLOYED_MODEL_PATH,
         "model_mtime": _model_mtime(DEPLOYED_MODEL_PATH),
     }
-    META_PATH.write_text(json.dumps(meta, indent=2))
+    META_PATH.write_text(json.dumps(meta, indent=2, default=_json_default))
 
     return {
         "metrics": bundle["metrics"],
