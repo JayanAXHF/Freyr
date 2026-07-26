@@ -295,7 +295,7 @@ figure.update_layout(
     margin=dict(t=40, b=40, l=60, r=20),
 )
 # Let Streamlit theme the chrome (light/dark); trace colours stay explicit.
-st.plotly_chart(figure, use_container_width=True)
+st.plotly_chart(figure, width="stretch")
 
 # --- 4. Cost breakdown ------------------------------------------------------
 st.subheader("Cost breakdown")
@@ -320,7 +320,7 @@ cost.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     margin=dict(t=40, b=40, l=60, r=20),
 )
-st.plotly_chart(cost, use_container_width=True)
+st.plotly_chart(cost, width="stretch")
 
 # --- 5. Detail table (full numbers drill-down) ------------------------------
 st.subheader("Full metrics")
