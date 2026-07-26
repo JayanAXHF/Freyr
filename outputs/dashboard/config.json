@@ -1,0 +1,27 @@
+{
+  "tariff_blocks": [
+    {
+      "start_hour": 0,
+      "end_hour": 6,
+      "price_inr_per_kwh": 5.0
+    },
+    {
+      "start_hour": 6,
+      "end_hour": 18,
+      "price_inr_per_kwh": 8.0
+    },
+    {
+      "start_hour": 18,
+      "end_hour": 22,
+      "price_inr_per_kwh": 10.0
+    },
+    {
+      "start_hour": 22,
+      "end_hour": 24,
+      "price_inr_per_kwh": 6.0
+    }
+  ],
+  "demand_charge_inr_per_kva_month": 250.0,
+  "tz": "Asia/Kolkata",
+  "timestep_minutes": 15
+}

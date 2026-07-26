@@ -1,0 +1,24 @@
+{
+  "mpc": {
+    "total_energy_cost": 16311.04559679697,
+    "demand_charge_incurred": 4817.605053368002,
+    "total_bill": 21128.65065016497,
+    "peak_kva": 19.270420213472008,
+    "unmet_load_kwh": 4.0221846275091603e-07,
+    "unmet_events": 0,
+    "shed_load_kwh": 4.0221846275091603e-07,
+    "shed_events": 0,
+    "solar_self_consumption": 0.9240112558554483
+  },
+  "ppo": {
+    "total_energy_cost": 15825.216430702669,
+    "demand_charge_incurred": 2537.7140069840266,
+    "total_bill": 18362.930437686697,
+    "peak_kva": 10.150856027936106,
+    "unmet_load_kwh": 9.255428314208984,
+    "unmet_events": 1424,
+    "shed_load_kwh": 9.255428314208984,
+    "shed_events": 1424,
+    "solar_self_consumption": 0.970194535191743
+  }
+}
