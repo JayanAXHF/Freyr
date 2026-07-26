@@ -21,7 +21,6 @@ wheels/
 .ruff_cache/
 .coverage
 htmlcov/
-/outputs
 /models
 
 # --- IDEs & OS Files ---
