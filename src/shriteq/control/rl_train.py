@@ -1,4 +1,4 @@
-"""PPO training entry point for the GridEdge environment."""
+"""PPO training entry point for the GridEdge (Freyr) environment."""
 
 from __future__ import annotations
 
@@ -168,7 +168,9 @@ def train(
     )
 
     logger_callback = EpisodeRewardLogger()
-    model.learn(total_timesteps=total_timesteps, callback=[eval_callback, logger_callback])
+    model.learn(
+        total_timesteps=total_timesteps, callback=[eval_callback, logger_callback]
+    )
 
     # Persist to canonical paths so benchmark/dashboard/tests pick up the model.
     # Prefer EvalCallback's best checkpoint; fall back to the final policy.
@@ -216,14 +218,18 @@ class CriticWarmupCallback(BaseCallback):
     def _on_training_start(self) -> None:
         _set_actor_trainable(self.model.policy, False)
         if self.verbose:
-            print(f"[warmup] actor frozen for first {self.warmup_steps} steps", flush=True)
+            print(
+                f"[warmup] actor frozen for first {self.warmup_steps} steps", flush=True
+            )
 
     def _on_step(self) -> bool:
         if not self._unfrozen and self.num_timesteps >= self.warmup_steps:
             _set_actor_trainable(self.model.policy, True)
             self._unfrozen = True
             if self.verbose:
-                print(f"[warmup] actor unfrozen at {self.num_timesteps} steps", flush=True)
+                print(
+                    f"[warmup] actor unfrozen at {self.num_timesteps} steps", flush=True
+                )
         return True
 
 
@@ -240,7 +246,14 @@ class BillEvalCallback(BaseCallback):
     ship worse than BC.
     """
 
-    def __init__(self, out_path: str | Path, eval_seeds, eval_freq: int, bill_floor: float, verbose: int = 1):
+    def __init__(
+        self,
+        out_path: str | Path,
+        eval_seeds,
+        eval_freq: int,
+        bill_floor: float,
+        verbose: int = 1,
+    ):
         super().__init__(verbose)
         self.out_path = str(out_path)
         self.eval_seeds = list(eval_seeds)
@@ -287,7 +300,10 @@ class BillEvalCallback(BaseCallback):
                 self.model.save(self.out_path)
                 self.training_env.save(self.out_path + "_vecnormalize.pkl")
                 if self.verbose:
-                    print(f"[bill-eval] NEW BEST bill={bill:.0f} -> saved {self.out_path}", flush=True)
+                    print(
+                        f"[bill-eval] NEW BEST bill={bill:.0f} -> saved {self.out_path}",
+                        flush=True,
+                    )
         return True
 
 
@@ -360,10 +376,15 @@ def finetune(
     bc_bill = _bc_bill_floor(bc_path, eval_seeds)
     shutil.copyfile(str(bc_path) + ".zip", out_path + ".zip")
     shutil.copyfile(str(bc_path) + "_vecnormalize.pkl", out_path + "_vecnormalize.pkl")
-    print(f"[finetune] BC bill floor (seeds {list(eval_seeds)}) = {bc_bill:.0f}", flush=True)
+    print(
+        f"[finetune] BC bill floor (seeds {list(eval_seeds)}) = {bc_bill:.0f}",
+        flush=True,
+    )
 
     warmup_callback = CriticWarmupCallback(warmup_steps=warmup_steps)
-    bill_callback = BillEvalCallback(out_path, eval_seeds, eval_freq, bill_floor=bc_bill)
+    bill_callback = BillEvalCallback(
+        out_path, eval_seeds, eval_freq, bill_floor=bc_bill
+    )
     logger_callback = EpisodeRewardLogger()
     model.learn(
         total_timesteps=total_timesteps,

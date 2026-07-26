@@ -1,0 +1,8 @@
+# Cross-compilation for the Raspberry Pi (3.5" kiosk display).
+#
+#   rustup target add arm-unknown-linux-gnueabihf
+#   cargo build --release --target arm-unknown-linux-gnueabihf
+#
+# Adjust the linker path to your installed cross toolchain.
+[target.arm-unknown-linux-gnueabihf]
+linker = "/opt/homebrew/bin/arm-linux-gnueabihf-gcc"

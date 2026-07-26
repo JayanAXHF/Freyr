@@ -85,7 +85,9 @@ class MPCController:
             cp.sum(flex_reduction[:steps_left_in_day]) * dt_hours
             <= site_state.remaining_shed_budget_kwh
         )
-        low_price_factor = np.maximum(0.0, 1.0 - prices / max(float(np.max(prices)), 1e-9))
+        low_price_factor = np.maximum(
+            0.0, 1.0 - prices / max(float(np.max(prices)), 1e-9)
+        )
         remaining_flex = flex_reduction[:steps_left_in_day] * dt_hours
         cumulative_flex = cp.cumsum(remaining_flex)
         constraints.append(

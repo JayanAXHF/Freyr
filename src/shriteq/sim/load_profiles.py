@@ -11,7 +11,9 @@ from shriteq.config import SiteConfig
 def generate_load_series(config: SiteConfig, start, days: int) -> pd.Series:
     """Generate a noisy, synthetic site-load series at the configured timestep."""
     periods = days * (24 * 60 // config.timestep_minutes)
-    index = pd.date_range(start=start, periods=periods, freq=f"{config.timestep_minutes}min", tz=config.tz)
+    index = pd.date_range(
+        start=start, periods=periods, freq=f"{config.timestep_minutes}min", tz=config.tz
+    )
     hours = index.hour.to_numpy() + index.minute.to_numpy() / 60.0
 
     base = 3.0
@@ -21,7 +23,9 @@ def generate_load_series(config: SiteConfig, start, days: int) -> pd.Series:
     weekday_scale = np.where(index.dayofweek.to_numpy() >= 5, 0.72, 1.0)
     rng = np.random.default_rng(42)
     noise = rng.normal(0.0, 0.35, periods)
-    load_kw = np.maximum(0.1, (base + morning_peak + evening_peak + overnight) * weekday_scale + noise)
+    load_kw = np.maximum(
+        0.1, (base + morning_peak + evening_peak + overnight) * weekday_scale + noise
+    )
 
     return pd.Series(load_kw, index=index, name="load_kw")
 

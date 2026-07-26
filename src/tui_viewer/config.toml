@@ -1,0 +1,36 @@
+# ShriTeq GridEdge TUI configuration.
+# CLI flags override these: --server <url>, --snapshot <path>, --config <path>.
+
+server_url = "http://127.0.0.1:8000"
+refresh_secs = 30
+
+# QR-code screen: exactly three slots. Slot 1 defaults to the repo; fill in
+# slots 2 and 3 with your own resources (leave url = "" for an empty slot).
+[[qr]]
+label = "GitHub repo"
+url = "https://github.com/JayanAXHF/lvis_shriteq_26"
+
+[[qr]]
+label = ""
+url = ""
+
+[[qr]]
+label = ""
+url = ""
+
+# GPIO push-buttons for switching screens (Raspberry Pi only; ignored on other
+# hosts). Wire each button between the given BCM pin and ground — the internal
+# pull-up makes a press read active-low. `action` is "next", "prev", or a
+# 1-based screen number ("1"=Dashboard, "2"=Live, "3"=Graph, "4"=QR).
+[gpio]
+enabled = false
+poll_ms = 10
+debounce_ms = 50
+
+[[gpio.button]]
+pin = 20
+action = "next"
+
+# [[gpio.button]]
+# pin = 21
+# action = "prev"
