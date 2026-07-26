@@ -81,14 +81,23 @@ def collect_mpc_dataset(
                 plan = mpc.solve(state, _frames(config, load, solar, pos))
             elif pos % resolve_every != 0:
                 hvac, ev, pump = mpc.flex_fractions_at(pos % resolve_every)
-                plan.hvac_fraction, plan.ev_fraction, plan.pump_fraction = hvac, ev, pump
+                plan.hvac_fraction, plan.ev_fraction, plan.pump_fraction = (
+                    hvac,
+                    ev,
+                    pump,
+                )
             action = _plan_to_action(config, plan)
             obs_list.append(
-                {key: np.asarray(value, dtype=np.float32) for key, value in observation.items()}
+                {
+                    key: np.asarray(value, dtype=np.float32)
+                    for key, value in observation.items()
+                }
             )
             act_list.append(action)
             env.step(action)
-        print(f"collected window seed={seed} (total samples={len(obs_list)})", flush=True)
+        print(
+            f"collected window seed={seed} (total samples={len(obs_list)})", flush=True
+        )
     return obs_list, act_list
 
 
@@ -160,7 +169,9 @@ def behavior_clone(
             epoch_loss += float(loss.detach())
             n_batches += 1
         if epoch % 5 == 0 or epoch == epochs - 1:
-            print(f"bc epoch={epoch} mse={epoch_loss / max(1, n_batches):.5f}", flush=True)
+            print(
+                f"bc epoch={epoch} mse={epoch_loss / max(1, n_batches):.5f}", flush=True
+            )
 
     Path(model_path).parent.mkdir(parents=True, exist_ok=True)
     model.save(str(model_path))
