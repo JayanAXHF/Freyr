@@ -4,7 +4,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-pub const QR_SLOTS: usize = 3;
+pub const QR_SLOTS: usize = 2;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
