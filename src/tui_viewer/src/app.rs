@@ -95,10 +95,28 @@ impl App {
     }
 
     fn on_gpio(&mut self, action: GpioAction) {
-        self.screen = match action {
-            GpioAction::Next => self.screen.next(),
-            GpioAction::Prev => self.screen.prev(),
-            GpioAction::Screen(i) => Screen::from_index(i),
+        match action {
+            GpioAction::Next => {
+                if self.screen == Screen::Qr && self.qr_selected + 1 < QR_SLOTS {
+                    self.qr_selected += 1;
+                } else {
+                    if self.screen == Screen::Qr {
+                        self.qr_selected = 0;
+                    }
+                    self.screen = self.screen.next();
+                }
+            }
+            GpioAction::Prev => {
+                if self.screen == Screen::Qr && self.qr_selected > 0 {
+                    self.qr_selected -= 1;
+                } else {
+                    self.screen = self.screen.prev();
+                    if self.screen == Screen::Qr {
+                        self.qr_selected = QR_SLOTS - 1;
+                    }
+                }
+            }
+            GpioAction::Screen(i) => self.screen = Screen::from_index(i),
         };
     }
 
