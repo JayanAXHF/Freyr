@@ -14,7 +14,9 @@ def main() -> None:
     args = parser.parse_args()
     pprint(
         run_benchmark(
-            SiteConfig(), seed=args.seed, forecast_driven=args.forecast_driven
+            SiteConfig(meter_feed_path="data/meter_feed.csv"),
+            seed=args.seed,
+            forecast_driven=args.forecast_driven,
         )
     )
 
